@@ -142,7 +142,17 @@ nav.tabs button.on{color:var(--accent-ink);font-weight:650}
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;max-height:92dvh;overflow:auto;background:var(--surface);border-radius:24px 24px 0 0;padding:8px 16px calc(20px + env(safe-area-inset-bottom));transform:translateY(105%);transition:transform .25s ease;max-width:560px;margin:0 auto}
 .sheet:not(.open){visibility:hidden;transition:transform .25s ease,visibility 0s .25s}
 .sheet.open{transform:none}
-.grab{width:40px;height:5px;border-radius:5px;background:var(--line);margin:4px auto 12px}
+.grab{position:relative;width:44px;height:5px;border-radius:5px;background:var(--muted);opacity:.5;margin:4px auto 12px;cursor:pointer}
+.grab::before{content:"";position:absolute;inset:-14px -60px}
+.sheet{overscroll-behavior:contain;touch-action:pan-y}
+body.locked{overflow:hidden}
+.aiedit{display:flex;gap:8px;align-items:flex-end;background:var(--accent-soft);border-radius:16px;padding:8px;margin-bottom:14px}
+.aiedit textarea{flex:1;border:0;background:none;resize:none;padding:8px 4px;font-size:15px;outline:none;min-height:38px;max-height:100px}
+.aiedit .mic{width:40px;height:40px}
+.aiedit .mic svg{width:19px;height:19px}
+.aiedit .btn{min-height:40px}
+.flash{animation:flash 1.2s}
+@keyframes flash{0%{box-shadow:0 0 0 2px var(--accent)}100%{box-shadow:0 0 0 2px transparent}}
 .sheet h3{margin:0 0 6px;font-size:20px}
 .quote{font-size:14px;color:var(--muted);background:var(--surface2);border-radius:12px;padding:10px 12px;margin:8px 0 12px;display:flex;gap:8px;justify-content:space-between;align-items:flex-start}
 .quote button{border:0;background:none;color:var(--accent-ink);font-weight:650;font-size:13px;white-space:nowrap;padding:0}
@@ -568,7 +578,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG tracker 1.11</p>`;
+  <p class="muted small" style="text-align:center">SDG tracker 1.12</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -612,13 +622,32 @@ function updateSumBox() {
 
 /* ---------- sheet ---------- */
 function openSheet(html) {
-  $('#sheet').innerHTML = `<div class="grab"></div>` + html;
-  $('#sheet').classList.add('open'); $('#scrim').classList.add('open');
+  $('#sheet').innerHTML = `<div class="grab" data-act="close" aria-label="Zatvori"></div>` + html;
+  $('#sheet').classList.add('open'); $('#scrim').classList.add('open'); document.body.classList.add('locked');
   if (!history.state?.sheet) history.pushState({sheet:1}, '');
 }
-function hideSheet() { $('#sheet').classList.remove('open'); $('#scrim').classList.remove('open'); pending = null; mealDraft = null; }
+function hideSheet() { $('#sheet').classList.remove('open'); $('#scrim').classList.remove('open'); document.body.classList.remove('locked'); $('#sheet').style.transform = ''; pending = null; mealDraft = null; editRec?.stop(); }
 function closeSheet() { if (history.state?.sheet) history.back(); else hideSheet(); }
 window.addEventListener('popstate', hideSheet);
+// povuci prema dolje za zatvaranje
+(() => {
+  const sh = $('#sheet'); let drag = null;
+  sh.addEventListener('touchstart', e => {
+    if (sh.scrollTop > 0 || e.target.closest('input,textarea,select')) return;
+    drag = {y:e.touches[0].clientY, dy:0}; sh.style.transition = 'none';
+  }, {passive:true});
+  sh.addEventListener('touchmove', e => {
+    if (!drag) return;
+    const dy = e.touches[0].clientY - drag.y;
+    if (sh.scrollTop > 0 && drag.dy === 0) { drag = null; sh.style.transition = ''; return; }
+    drag.dy = Math.max(0, dy); sh.style.transform = drag.dy ? `translateY(${drag.dy}px)` : '';
+  }, {passive:true});
+  sh.addEventListener('touchend', () => {
+    if (!drag) return;
+    const close = drag.dy > 90; drag = null; sh.style.transition = '';
+    if (close) closeSheet(); else sh.style.transform = '';
+  });
+})();
 
 /* ---------- Claude ---------- */
 function systemPrompt(w, dateKey) {
@@ -893,11 +922,62 @@ function onMealInput(el) {
   $('#mTotal').innerHTML = `<span>Ukupno</span><span>${fmt(total)} kcal · P ${fmt(r1(pt))} g</span>`;
 }
 
+/* AI ispravak postojeće stavke */
+const EDIT_TOOL = {
+  name:'ispravi_stavku', description:'Vrati ispravljenu stavku.',
+  input_schema:{type:'object', properties:{
+    naziv:{type:'string'}, kolicina:{type:'string'}, grami:{type:'number'}, jedinica:{type:'string', enum:['g', 'ml']},
+    minute:{type:'number'}, met:{type:'number'}, kcal:{type:'number'},
+    proteini:{type:'number'}, ugljikohidrati:{type:'number'}, masti:{type:'number'}, objasnjenje:{type:'string'}
+  }, required:['naziv', 'kcal']}
+};
+function formEntry(kind) {
+  const v = id => $(id)?.value ?? '';
+  const n = id => { const x = parseFloat(v(id).replace(',', '.')); return isNaN(x) ? null : x; };
+  return kind === 'food'
+    ? {vrsta:'hrana', naziv:v('#eName'), kolicina:v('#eAmount'), grami:n('#eQ'), jedinica:v('#eUnit') || 'g', kcal:n('#eKcal'), proteini:n('#eP'), ugljikohidrati:n('#eC'), masti:n('#eF')}
+    : {vrsta:'aktivnost', naziv:v('#eName'), kolicina:v('#eAmount'), minute:n('#eQ'), kcal:n('#eKcal')};
+}
+async function aiEdit(kind) {
+  const ask = $('#eAsk').value.trim();
+  if (!ask) { toast('Reci ili upiši izmjenu'); return; }
+  if (!S().apiKey.trim()) { toast('Prvo upiši API ključ u Postavkama.'); return; }
+  const btn = $('#eAskBtn'); btn.disabled = true; btn.textContent = '…';
+  const w = weightAt(cur) || weightAt(todayKey()) || 80;
+  try {
+    const j = await callClaude({max_tokens:800, tools:[EDIT_TOOL], tool_choice:{type:'tool', name:'ispravi_stavku'},
+      system:`Korisnik ispravlja jednu već zabilježenu stavku u aplikaciji za praćenje kalorija. Primijeni njegovu izmjenu i vrati cijelu ispravljenu stavku alatom ispravi_stavku.
+- Mijenjaj samo ono na što izmjena utječe; ostale vrijednosti prepiši nepromijenjene.
+- Dodaci: žlica ulja ~10 g ≈ 90 kcal i 10 g masti; žličica ~5 g ≈ 45 kcal; maslac 10 g ≈ 72 kcal i 8 g masti; žlica šećera ~12 g ≈ 48 kcal UH. "Malo ulja" bez količine = 1 žlica.
+- Ako kaže "dvostruko", "pola" i sl., skaliraj grame, kcal i makronutrijente.
+- Ako izmjena mijenja količinu, ažuriraj i polje kolicina (npr. "+ 1 žlica ulja").
+- Za aktivnost vrati minute i met; kcal = (MET − 1) × ${w} kg × minute / 60.
+- U polje objasnjenje kratko (do 8 riječi) napiši što si promijenio.`,
+      messages:[{role:'user', content:`Trenutna stavka: ${JSON.stringify(formEntry(kind))}
+Izmjena: ${ask}`}]});
+    const x = (j.content || []).find(b => b.type === 'tool_use')?.input;
+    if (!x) throw new Error('Odgovor nije u očekivanom obliku.');
+    const set = (id, val) => { const el = $(id); if (el && val != null && String(el.value) !== String(val)) { el.value = val; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } };
+    if (kind === 'activity' && +x.met > 1 && +x.minute) x.kcal = Math.round((x.met - 1) * w * x.minute / 60);
+    set('#eName', x.naziv); set('#eAmount', x.kolicina);
+    set('#eQ', kind === 'food' ? (x.grami != null ? Math.round(x.grami) : null) : (x.minute != null ? Math.round(x.minute) : null));
+    if (kind === 'food') { set('#eUnit', x.jedinica); set('#eP', r1(x.proteini)); set('#eC', r1(x.ugljikohidrati)); set('#eF', r1(x.masti)); }
+    set('#eKcal', Math.round(+x.kcal || 0));
+    $('#eAsk').value = '';
+    toast((x.objasnjenje ? x.objasnjenje + ' · ' : '') + 'provjeri i spremi', 3500);
+  } catch (e) { toast(e.message, 4500); }
+  finally { btn.disabled = false; btn.textContent = 'Primijeni'; }
+}
+
 /* manual / edit */
 function entryForm(e) {
   const isNew = !e, kind = e ? e.kind : editKind, food = kind === 'food';
   e = e || {name:'', amount:'', grams:'', minutes:'', kcal:'', p:'', c:'', f:'', meal:mealByTime()};
+  const micSvg = $('#mic').innerHTML;
   return `<h3>${isNew ? 'Ručni unos' : 'Uredi stavku'}</h3>
+    ${isNew ? '' : `<div class="aiedit"><textarea id="eAsk" rows="1" placeholder="npr. „dodaj žlicu ulja“"></textarea>
+      <button class="mic" id="eMic" data-act="emic" aria-label="Diktiraj izmjenu">${micSvg}</button>
+      <button class="btn sm" data-act="eask" id="eAskBtn">Primijeni</button></div>`}
     ${isNew ? `<div class="seg"><button data-act="kind" data-k="food" class="${food ? 'on' : ''}">Hrana</button><button data-act="kind" data-k="activity" class="${food ? '' : 'on'}">Aktivnost</button></div>` : ''}
     <label class="f">Naziv<input id="eName" value="${esc(e.name)}"></label>
     <label class="f">Količina (opis)<input id="eAmount" value="${esc(e.amount)}" placeholder="${food ? 'npr. 1 tanjur' : 'npr. 45 min, umjereno'}"></label>
@@ -929,6 +1009,22 @@ function saveEntry(id, kind) {
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null, listening = false;
 function setMic(on) { listening = on; $('#mic').classList.toggle('on', on); $('#mic').setAttribute('aria-label', on ? 'Zaustavi' : 'Diktiraj'); }
+let editRec = null;
+function dictate(input, btn, onEnd) {
+  if (editRec) { editRec.stop(); return; }
+  if (!SR) { toast('Ovaj preglednik ne podržava diktiranje. Koristi mikrofon na tipkovnici.', 4500); input.focus(); return; }
+  const before = input.value.trim(); let fin = '';
+  const r = editRec = new SR();
+  r.lang = 'hr-HR'; r.interimResults = true; r.continuous = false;
+  r.onresult = e => {
+    let f = '', i = '';
+    for (const x of e.results) (x.isFinal ? (f += x[0].transcript + ' ') : (i += x[0].transcript));
+    fin = f.trim(); input.value = [before, (f + i).trim()].filter(Boolean).join(' ');
+  };
+  r.onerror = e => { if (e.error === 'not-allowed') toast('Dopusti pristup mikrofonu.'); };
+  r.onend = () => { editRec = null; btn.classList.remove('on'); if (fin) onEnd?.(); };
+  try { r.start(); btn.classList.add('on'); } catch (e) { editRec = null; }
+}
 function toggleMic() {
   if (listening) { rec?.stop(); return; }
   if (!SR) { toast('Ovaj preglednik ne podržava diktiranje. Koristi mikrofon na tipkovnici.', 4500); inp.focus(); return; }
@@ -1012,6 +1108,8 @@ document.addEventListener('click', e => {
     case 'kind': editKind = el.dataset.k; openSheet(entryForm(null)); break;
     case 'edit': { const en = entriesOf(cur).find(x => x.id === id); if (en) openSheet(entryForm(en)); break; }
     case 'esave': saveEntry(id, el.dataset.kind); break;
+    case 'eask': aiEdit($('[data-act="esave"]').dataset.kind); break;
+    case 'emic': dictate($('#eAsk'), el, () => { if (S().autoProcess) aiEdit($('[data-act="esave"]').dataset.kind); }); break;
     case 'edel': { const d = db.days[cur]; if (d) d.entries = d.entries.filter(x => x.id !== id); save(); closeSheet(); render(); break; }
     case 'wsave': {
       const v = parseFloat(($('#wIn').value || '').replace(',', '.')), k = $('#wDate').value || todayKey();
