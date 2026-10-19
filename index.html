@@ -113,6 +113,12 @@ label.chk input{width:22px;height:22px;accent-color:var(--accent);flex:none}
 .comp textarea{flex:1;border:0;background:none;resize:none;padding:10px 4px;max-height:120px;font-size:16px;line-height:1.35;outline:none}
 .mic,.send{width:46px;height:46px;border-radius:50%;border:0;display:grid;place-items:center;flex:none}
 .mic{background:var(--accent);color:var(--on-accent)}
+.cam{width:40px;height:46px;border:0;background:none;color:var(--muted);display:grid;place-items:center;flex:none}
+.cam svg{width:23px;height:23px}
+.photochip{max-width:536px;margin:0 auto 6px;display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:6px 8px;box-shadow:var(--shadow)}
+.photochip img{width:46px;height:46px;object-fit:cover;border-radius:10px}
+.photochip span{flex:1;font-size:13px;color:var(--muted)}
+.qimg{width:64px;height:64px;object-fit:cover;border-radius:10px;flex:none}
 .mic.on{background:var(--bad);animation:pulse 1.2s infinite}
 .send{background:var(--surface2);color:var(--text)}
 .send:disabled{opacity:.4}
@@ -213,11 +219,17 @@ nav.tabs button.on{color:var(--accent-ink);font-weight:650}
 </div>
 
 <div id="composer">
+  <div class="photochip" id="photoChip" hidden><img id="photoImg" alt=""><span>Fotografija priložena · možeš dodati opis</span>
+    <button class="x" data-act="photodel" aria-label="Ukloni fotografiju">×</button></div>
   <div class="comp">
     <button class="mic" id="mic" aria-label="Diktiraj">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
     </button>
     <textarea id="inp" rows="1" enterkeyhint="send" placeholder="Što si jeo ili radio?"></textarea>
+    <button class="cam" id="cam" aria-label="Fotografiraj obrok">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>
+    </button>
+    <input type="file" id="photoIn" accept="image/*" hidden>
     <button class="send" id="send" aria-label="Obradi" disabled>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
     </button>
@@ -555,7 +567,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG tracker 1.9</p>`;
+  <p class="muted small" style="text-align:center">SDG tracker 1.10</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -624,6 +636,12 @@ HRANA
 - obrok: doručak, ručak, večera ili užina – prema tekstu, a ako nije rečeno, prema vremenu unosa.
 - sigurnost: "niska" kad je porcija ili sastav vrlo nejasan, "srednja" za uobičajene procjene, "visoka" kad su grami ili proizvod jasno navedeni.
 
+FOTOGRAFIJA
+- Ako je priložena fotografija obroka, prepoznaj namirnice i procijeni porcije prema vizualnim referencama (veličina tanjura ~26 cm, pribor, ruka, pakiranje).
+- Ako tekst navodi količinu ili koliko je pojedeno ("pojeo sam pola"), tekst ima prednost pred procjenom sa slike.
+- Ako je na fotografiji nutritivna deklaracija ili pakiranje, očitaj vrijednosti (na 100 g/ml) i preračunaj na navedenu količinu; ako količina nije navedena, uzmi jednu uobičajenu porciju i to napiši.
+- Kad je porcija na slici teško procjenjiva (zdjela s dubinom, skriveni umaci, ulje), stavi sigurnost "niska".
+
 AKTIVNOST
 - Za SVAKU aktivnost obavezno navedi minute (ukupno aktivno vrijeme) i met (MET vrijednost). Nikad ne vraćaj aktivnost bez njih.
 - Runde i serije pretvori u minute: "4 runde po 5 minuta" = 20 minuta. Ako je spomenut i odmor između rundi, ne ubrajaj ga.
@@ -688,10 +706,12 @@ async function callClaude(body) {
   }
   return j;
 }
-async function askClaude(text) {
+async function askClaude(text, ph) {
   const w = weightAt(cur) || weightAt(todayKey()) || 80;
+  const content = ph ? [{type:'image', source:{type:'base64', media_type:'image/jpeg', data:ph.data}},
+                        {type:'text', text:text || 'Procijeni obrok na fotografiji.'}] : text;
   const j = await callClaude({max_tokens:2000, system:systemPrompt(w, cur), tools:[TOOL],
-    tool_choice:{type:'tool', name:'zapisi_unos'}, messages:[{role:'user', content:text}]});
+    tool_choice:{type:'tool', name:'zapisi_unos'}, messages:[{role:'user', content}]});
   const tu = (j.content || []).find(b => b.type === 'tool_use');
   if (!tu || !Array.isArray(tu.input?.stavke)) throw new Error('Odgovor nije u očekivanom obliku. Pokušaj ponovno.');
   return tu.input;
@@ -699,17 +719,36 @@ async function askClaude(text) {
 
 /* ---------- input & processing ---------- */
 const inp = $('#inp');
-function autosize() { inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 120) + 'px'; $('#send').disabled = busy || !inp.value.trim(); }
+let photo = null;
+function autosize() { inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 120) + 'px'; $('#send').disabled = busy || (!inp.value.trim() && !photo); }
+function setPhoto(ph) {
+  photo = ph; $('#photoChip').hidden = !ph;
+  if (ph) $('#photoImg').src = ph.url;
+  autosize();
+}
+async function shrinkPhoto(file) {
+  let src;
+  try { src = await createImageBitmap(file, {imageOrientation:'from-image'}); }
+  catch (e) {
+    src = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file); });
+  }
+  const k = Math.min(1, 1024 / Math.max(src.width, src.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(src.width * k); c.height = Math.round(src.height * k);
+  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+  const url = c.toDataURL('image/jpeg', 0.82);
+  return {url, data:url.split(',')[1]};
+}
 function setBusy(b) { busy = b; $('#send').classList.toggle('busy', b); autosize(); }
 async function processInput() {
-  const text = inp.value.trim();
-  if (!text || busy) return;
+  const text = inp.value.trim(), ph = photo;
+  if ((!text && !ph) || busy) return;
   if (!S().apiKey.trim()) { toast('Prvo upiši API ključ u Postavkama.'); return; }
   setBusy(true);
   try {
-    const res = await askClaude(text);
-    inp.value = ''; autosize();
-    openConfirm(text, res);
+    const res = await askClaude(text, ph);
+    inp.value = ''; setPhoto(null);
+    openConfirm(text, res, ph);
   } catch (e) { toast(e.message, 4500); }
   finally { setBusy(false); }
 }
@@ -729,9 +768,9 @@ function normItem(x) {
   it.base = {q:act ? it.minutes : it.grams, kcal:it.kcal, p:it.p, c:it.c, f:it.f};
   return it;
 }
-function openConfirm(text, res) {
+function openConfirm(text, res, ph) {
   const st = Math.round(+res.koraci);
-  pending = {text, items:res.stavke.map(normItem), note:res.napomena || '', steps:st > 0 ? st : null, prevSteps:+db.days[cur]?.steps || 0};
+  pending = {text, photo:ph || null, items:res.stavke.map(normItem), note:res.napomena || '', steps:st > 0 ? st : null, prevSteps:+db.days[cur]?.steps || 0};
   const firstFood = pending.items.find(i => i.kind === 'food');
   pending.meal = firstFood ? firstFood.meal : mealByTime();
   renderConfirm();
@@ -756,7 +795,7 @@ function confirmTotals() {
 function renderConfirm() {
   const p = pending, hasFood = p.items.some(i => i.kind === 'food');
   let h = `<h3>Provjeri unos</h3>
-    <div class="quote"><span>„${esc(p.text)}“</span><button data-act="retext">Ispravi tekst</button></div>`;
+    <div class="quote">${p.photo ? `<img class="qimg" src="${p.photo.url}" alt="">` : ''}<span style="flex:1">${p.text ? `„${esc(p.text)}“` : 'Procjena s fotografije'}</span><button data-act="retext">Ispravi${p.photo ? '' : ' tekst'}</button></div>`;
   if (p.note) h += `<p class="muted small" style="margin:-4px 0 10px">${esc(p.note)}</p>`;
   if (!p.items.length && p.steps == null) {
     h += `<div class="empty">Nisam prepoznao hranu ni aktivnost.</div>
@@ -956,7 +995,8 @@ document.addEventListener('click', e => {
     case 'next': if (cur < todayKey()) { cur = addDays(cur, 1); render(); } break;
     case 'today': cur = todayKey(); render(); break;
     case 'close': closeSheet(); break;
-    case 'retext': { const t = pending?.text || ''; closeSheet(); inp.value = t; autosize(); setTimeout(() => inp.focus(), 300); break; }
+    case 'retext': { const t = pending?.text || '', ph = pending?.photo || null; closeSheet(); inp.value = t; setPhoto(ph); setTimeout(() => inp.focus(), 300); break; }
+    case 'photodel': setPhoto(null); break;
     case 'cidel': pending.items.splice(+el.dataset.i, 1); renderConfirm(); break;
     case 'cistdel': pending.steps = null; renderConfirm(); break;
     case 'steps': openSheet(`<h3>Koraci</h3>
@@ -1051,6 +1091,13 @@ document.addEventListener('change', e => {
 $('#scrim').addEventListener('click', closeSheet);
 $('#mic').addEventListener('click', toggleMic);
 $('#send').addEventListener('click', processInput);
+$('#cam').addEventListener('click', () => $('#photoIn').click());
+$('#photoIn').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try { setPhoto(await shrinkPhoto(f)); }
+  catch (err) { toast('Fotografiju nije moguće učitati.'); }
+});
 inp.addEventListener('input', autosize);
 inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); processInput(); } });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && tab === 'dan') render(); });
