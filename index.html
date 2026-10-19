@@ -26,6 +26,7 @@
   --shadow:none;color-scheme:dark;
 }}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
 html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 body{min-height:100dvh;overflow-x:hidden}
 button,input,select,textarea{font:inherit;color:inherit}
@@ -219,7 +220,7 @@ nav.tabs button.on{color:var(--accent-ink);font-weight:650}
 </div>
 
 <div id="composer">
-  <div class="photochip" id="photoChip" hidden><img id="photoImg" alt=""><span>Fotografija priložena · možeš dodati opis</span>
+  <div class="photochip" id="photoChip" hidden><img id="photoImg" alt=""><span>Fotografija priložena · dodaj opis pa pošalji strelicom</span>
     <button class="x" data-act="photodel" aria-label="Ukloni fotografiju">×</button></div>
   <div class="comp">
     <button class="mic" id="mic" aria-label="Diktiraj">
@@ -567,7 +568,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG tracker 1.10</p>`;
+  <p class="muted small" style="text-align:center">SDG tracker 1.11</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -947,7 +948,7 @@ function toggleMic() {
     else if (e.error === 'network') toast('Diktiranje treba internetsku vezu.');
     else if (e.error !== 'no-speech' && e.error !== 'aborted') toast('Greška diktiranja: ' + e.error);
   };
-  rec.onend = () => { setMic(false); if (finalText && S().autoProcess) processInput(); };
+  rec.onend = () => { setMic(false); if (finalText && S().autoProcess && !photo) processInput(); };
   try { rec.start(); setMic(true); } catch (e) { toast('Diktiranje nije uspjelo pokrenuti.'); }
 }
 
