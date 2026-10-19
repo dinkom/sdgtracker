@@ -1,0 +1,14 @@
+/* SDG tracker – skin: OSNOVNI (crna, bijela i žuta iz loga)
+   Za aktivaciju: sadržaj ove datoteke kopiraj u skin.css. */
+:root{
+  --bg:#f5f2ec;--surface:#fff;--surface2:#ece8e0;--text:#1c1a17;--muted:#716b61;--line:#e3ded4;
+  --accent:#e7c640;--accent-ink:#7a6200;--accent-soft:#faf1cc;--on-accent:#111;
+  --good:#1f8a58;--warn:#b97d0a;--bad:#cf3b3b;
+  --pc:#2f7fc1;--cc:#d9692e;--fc:#8e55b5;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#121110;--surface:#1c1a18;--surface2:#282522;--text:#f2eee7;--muted:#a39c91;--line:#33302b;
+  --accent:#e7c640;--accent-ink:#e7c640;--accent-soft:#332b10;--on-accent:#111;
+  --good:#3cc184;--warn:#e9ad37;--bad:#ff6b6b;
+  --pc:#5aa6e6;--cc:#f08a52;--fc:#b98ae0;
+}}
