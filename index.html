@@ -188,6 +188,10 @@ nav.tabs button.on{color:var(--accent-ink);font-weight:650}
 .mi label.f>input{padding:9px 10px}
 .mi-calc{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted);min-height:24px}
 .mi-calc button{border:0;background:var(--accent-soft);color:var(--accent-ink);font-weight:650;border-radius:8px;padding:3px 9px;font-size:13px}
+.unit{border:0;background:none;color:var(--muted);font-size:14px;padding:0 2px;outline:none}
+.qrow{display:flex;gap:6px;margin-top:5px}
+.qrow .inp{margin:0;flex:1;min-width:0;padding:9px 10px}
+.qrow select.inp{flex:none;width:68px}
 #toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translate(-50%,20px);z-index:30;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:14px;font-size:14px;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:all .25s;text-align:center}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 </style>
@@ -395,7 +399,7 @@ function dayHtml() {
           <span class="kc plus">+${fmt(stepsKcal(t.steps, k))}</span></button>` : '';
       h += `<div class="card list"><div class="lh"><span>${g}</span><span class="num">${act ? '+' : ''}${fmt(sum)} kcal</span></div>
         ${stepRow}${groups[g].map(e => `<button class="row" data-act="edit" data-id="${e.id}">
-          <span class="nm">${esc(e.name)}<small>${esc(e.amount || (act && e.minutes ? e.minutes + ' min' : e.grams ? fmt(e.grams) + ' g' : ''))}</small></span>
+          <span class="nm">${esc(e.name)}<small>${esc(e.amount || (act && e.minutes ? e.minutes + ' min' : e.grams ? fmt(e.grams) + ' ' + (e.unit === 'ml' ? 'ml' : 'g') : ''))}</small></span>
           <span class="kc ${act ? 'plus' : ''}">${act ? '+' : ''}${fmt(e.kcal)}</span></button>`).join('')}</div>`;
     }
   }
@@ -539,7 +543,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG tracker 1.5</p>`;
+  <p class="muted small" style="text-align:center">SDG tracker 1.6</p>`;
 }
 function fillSettings() {
   const s = S();
@@ -573,7 +577,7 @@ window.addEventListener('popstate', hideSheet);
 /* ---------- Claude ---------- */
 function systemPrompt(w, dateKey) {
   const now = new Date();
-  const meals = db.meals.map(m => ({naziv:m.name, stavke:m.items.map(i => ({naziv:i.name, kolicina:i.amount, grami:i.grams, kcal:i.kcal, proteini:i.p, ugljikohidrati:i.c, masti:i.f}))}));
+  const meals = db.meals.map(m => ({naziv:m.name, stavke:m.items.map(i => ({naziv:i.name, kolicina:i.amount, grami:i.grams, jedinica:i.unit || 'g', kcal:i.kcal, proteini:i.p, ugljikohidrati:i.c, masti:i.f}))}));
   return `Ti si nutricionistički asistent u aplikaciji za praćenje kalorija. Korisnik na hrvatskom (često diktirano glasom, pa su moguće greške prepoznavanja govora) opisuje što je pojeo ili popio i/ili koju je tjelesnu aktivnost odradio. Sve pretvori u stavke pomoću alata zapisi_unos.
 
 HRANA
@@ -583,6 +587,7 @@ HRANA
 - Uzmi u obzir način pripreme ako je naveden (prženo, pohano, na žaru, kuhano).
 - Pića s kalorijama (sok, pivo, vino, kava s mlijekom ili šećerom, proteinski shake) su hrana. Voda, crna kava i nezaslađeni čaj zapisuju se samo ako su izričito spomenuti, s ~0 kcal.
 - Ako korisnik spomene neki od spremljenih obroka s popisa ispod, upotrijebi točno njegove stavke i vrijednosti (skaliraj ako je količina drukčija).
+- jedinica: "ml" za pića i tekućine (mlijeko, sok, shake, jogurt za piće, pivo, vino), inače "g". Polje grami tada sadrži mililitre.
 - obrok: doručak, ručak, večera ili užina – prema tekstu, a ako nije rečeno, prema vremenu unosa.
 - sigurnost: "niska" kad je porcija ili sastav vrlo nejasan, "srednja" za uobičajene procjene, "visoka" kad su grami ili proizvod jasno navedeni.
 
@@ -616,7 +621,8 @@ const TOOL = {
       vrsta:{type:'string', enum:['hrana', 'aktivnost']},
       naziv:{type:'string', description:'Kratak naziv na hrvatskom, npr. "Kuhana jaja" ili "Trčanje"'},
       kolicina:{type:'string', description:'Čitljiva količina, npr. "3 kom (150 g)" ili "30 min, lagano"'},
-      grami:{type:'number', description:'Ukupna masa u gramima (samo hrana)'},
+      grami:{type:'number', description:'Ukupna količina u gramima ili mililitrima, ovisno o polju jedinica (samo hrana)'},
+      jedinica:{type:'string', enum:['g', 'ml']},
       minute:{type:'number', description:'Ukupno aktivno trajanje u minutama (obavezno za aktivnost)'},
       met:{type:'number', description:'MET vrijednost aktivnosti (obavezno za aktivnost)'},
       kcal:{type:'number', description:'Ukupne kcal stavke; za aktivnost neto potrošnja'},
@@ -678,7 +684,7 @@ async function processInput() {
 function normItem(x) {
   const act = x.vrsta === 'aktivnost';
   const it = {kind:act ? 'activity' : 'food', name:x.naziv || '', amount:x.kolicina || '',
-    grams:act ? null : (+x.grami ? Math.round(+x.grami) : null), minutes:act ? (+x.minute ? Math.round(+x.minute) : null) : null,
+    grams:act ? null : (+x.grami ? Math.round(+x.grami) : null), unit:x.jedinica === 'ml' ? 'ml' : 'g', minutes:act ? (+x.minute ? Math.round(+x.minute) : null) : null,
     kcal:Math.round(+x.kcal || 0), p:act ? 0 : r1(x.proteini), c:act ? 0 : r1(x.ugljikohidrati), f:act ? 0 : r1(x.masti),
     meal:act ? '' : (MEALS.includes(x.obrok) ? x.obrok : mealByTime()), conf:x.sigurnost || ''};
   if (act) {
@@ -704,7 +710,7 @@ function ciHtml(it, i) {
       <button class="x" data-act="cidel" data-i="${i}" aria-label="Ukloni">×</button></div>
     <div class="ci-sub">${food ? '' : 'aktivnost · '}${esc(it.amount)}${it.conf === 'niska' ? '<span class="tag warn">gruba procjena</span>' : ''}</div>
     <div class="ci-fields">
-      ${food ? `<label><input data-f="grams" type="number" inputmode="decimal" value="${it.grams ?? ''}" placeholder="–"><span>g</span></label>`
+      ${food ? `<label><input data-f="grams" type="number" inputmode="decimal" value="${it.grams ?? ''}" placeholder="–"><select data-f="unit" class="unit">${['g','ml'].map(u => `<option ${u === (it.unit || 'g') ? 'selected' : ''}>${u}</option>`).join('')}</select></label>`
              : `<label><input data-f="minutes" type="number" inputmode="numeric" value="${it.minutes ?? ''}" placeholder="–"><span>min</span></label>`}
       <label><input data-f="kcal" type="number" inputmode="numeric" value="${it.kcal}"><span>kcal</span></label></div>
     ${food ? `<div class="ci-mac">P ${fmt(it.p, 1)} g · UH ${fmt(it.c, 1)} g · M ${fmt(it.f, 1)} g</div>` : ''}</div>`;
@@ -740,6 +746,7 @@ function onConfirmInput(el) {
   const row = el.closest('.ci'); if (!row || !pending) return;
   const it = pending.items[+row.dataset.i], f = el.dataset.f, v = el.value;
   if (f === 'name') { it.name = v; return; }
+  if (f === 'unit') { it.unit = v; return; }
   const n = parseFloat(String(v).replace(',', '.'));
   const b = it.base;
   if (f === 'grams' || f === 'minutes') {
@@ -762,7 +769,7 @@ function saveConfirm() {
   const meal = $('#cMeal')?.value || p.meal;
   const day = (db.days[cur] ||= {entries:[]});
   const clean = it => ({id:uid(), kind:it.kind, name:it.name.trim() || (it.kind === 'food' ? 'Namirnica' : 'Aktivnost'), amount:it.amount,
-    grams:it.grams, minutes:it.minutes, kcal:it.kcal, p:it.p, c:it.c, f:it.f, meal:it.kind === 'food' ? meal : '', ts:Date.now()});
+    grams:it.grams, unit:it.kind === 'food' ? (it.unit || 'g') : undefined, minutes:it.minutes, kcal:it.kcal, p:it.p, c:it.c, f:it.f, meal:it.kind === 'food' ? meal : '', ts:Date.now()});
   for (const it of p.items) day.entries.push(clean(it));
   if (p.steps != null && p.steps > 0) day.steps = Math.round(p.steps);
   if ($('#cSave')?.checked) {
@@ -790,8 +797,8 @@ function renderMealEdit() {
     ${d.items.map((it, i) => `<div class="mi" data-i="${i}">
       <div class="ci-top" style="margin-bottom:6px"><input class="ci-name" data-mf="name" value="${esc(it.name)}" aria-label="Naziv namirnice">
         <button class="x" data-act="midel" data-i="${i}" aria-label="Ukloni">×</button></div>
-      <div class="grid2"><label class="f">Količina<input data-mf="amount" value="${esc(it.amount)}" placeholder="npr. 1 mjerica"></label>
-        <label class="f">Grami<input data-mf="grams" type="number" inputmode="decimal" value="${n(it.grams)}"></label></div>
+      <div class="grid2"><label class="f">Opis<input data-mf="amount" value="${esc(it.amount)}" placeholder="npr. 1 mjerica"></label>
+        <label class="f">Mjera<div class="qrow"><input class="inp" data-mf="grams" type="number" inputmode="decimal" value="${n(it.grams)}"><select data-mf="unit" class="inp" >${['g','ml'].map(u => `<option ${u === (it.unit || 'g') ? 'selected' : ''}>${u}</option>`).join('')}</select></div></label></div>
       <div class="grid3"><label class="f">Proteini g<input data-mf="p" type="number" inputmode="decimal" value="${n(it.p)}"></label>
         <label class="f">UH g<input data-mf="c" type="number" inputmode="decimal" value="${n(it.c)}"></label>
         <label class="f">Masti g<input data-mf="f" type="number" inputmode="decimal" value="${n(it.f)}"></label></div>
@@ -799,14 +806,14 @@ function renderMealEdit() {
       <div class="mi-calc">${miCalcHtml(it)}</div></div>`).join('')}
     <button class="linkbtn" data-act="miadd">+ Dodaj namirnicu</button>
     <div class="total" id="mTotal"><span>Ukupno</span><span>${fmt(total)} kcal · P ${fmt(pt)} g</span></div>
-    <p class="muted small" style="margin:0">Promjene vrijede za buduće unose; već zabilježeni dani se ne mijenjaju.</p>
+    <p class="muted small" style="margin:0">Ako je obrok već upisan na prikazanom danu, pri spremanju te pitam želiš li ažurirati i taj unos.</p>
     <div class="btns"><button class="btn danger" data-act="mealdel" data-id="${d.id}">Obriši</button><button class="btn" data-act="mealsave">Spremi</button></div>`);
 }
 function onMealInput(el) {
   if (el.id === 'mName') { mealDraft.name = el.value; return; }
   const row = el.closest('.mi'); if (!row) return;
   const it = mealDraft.items[+row.dataset.i], f = el.dataset.mf;
-  if (f === 'name' || f === 'amount') it[f] = el.value;
+  if (f === 'name' || f === 'amount' || f === 'unit') it[f] = el.value;
   else { const v = parseFloat(el.value.replace(',', '.')); it[f] = isNaN(v) ? (f === 'grams' ? null : 0) : v; }
   row.querySelector('.mi-calc').innerHTML = miCalcHtml(it);
   const total = mealDraft.items.reduce((a, i) => a + (+i.kcal || 0), 0), pt = mealDraft.items.reduce((a, i) => a + (+i.p || 0), 0);
@@ -821,7 +828,7 @@ function entryForm(e) {
     ${isNew ? `<div class="seg"><button data-act="kind" data-k="food" class="${food ? 'on' : ''}">Hrana</button><button data-act="kind" data-k="activity" class="${food ? '' : 'on'}">Aktivnost</button></div>` : ''}
     <label class="f">Naziv<input id="eName" value="${esc(e.name)}"></label>
     <label class="f">Količina (opis)<input id="eAmount" value="${esc(e.amount)}" placeholder="${food ? 'npr. 1 tanjur' : 'npr. 45 min, umjereno'}"></label>
-    <div class="grid2">${food ? `<label class="f">Grami<input id="eQ" type="number" inputmode="decimal" value="${e.grams ?? ''}"></label>`
+    <div class="grid2">${food ? `<label class="f">Količina<div class="qrow"><input class="inp" id="eQ" type="number" inputmode="decimal" value="${e.grams ?? ''}"><select id="eUnit" class="inp" >${['g','ml'].map(u => `<option ${u === (e.unit || 'g') ? 'selected' : ''}>${u}</option>`).join('')}</select></div></label>`
                              : `<label class="f">Minute<input id="eQ" type="number" inputmode="numeric" value="${e.minutes ?? ''}"></label>`}
       <label class="f">kcal<input id="eKcal" type="number" inputmode="numeric" value="${e.kcal ?? ''}"></label></div>
     ${food ? `<div class="grid3"><label class="f">Proteini g<input id="eP" type="number" inputmode="decimal" value="${e.p ?? ''}"></label>
@@ -837,7 +844,7 @@ function saveEntry(id, kind) {
   if (!name) { toast('Upiši naziv'); return; }
   const food = kind === 'food';
   const data = {name, amount:$('#eAmount').value.trim(), kcal,
-    grams:food ? (num('#eQ') || null) : null, minutes:food ? null : (num('#eQ') || null),
+    grams:food ? (num('#eQ') || null) : null, unit:food ? ($('#eUnit')?.value || 'g') : undefined, minutes:food ? null : (num('#eQ') || null),
     p:food ? r1(num('#eP')) : 0, c:food ? r1(num('#eC')) : 0, f:food ? r1(num('#eF')) : 0, meal:food ? $('#eMeal').value : ''};
   const day = (db.days[cur] ||= {entries:[]});
   if (id) Object.assign(day.entries.find(x => x.id === id) || {}, data);
@@ -942,11 +949,12 @@ document.addEventListener('click', e => {
     case 'mealadd': {
       const m = db.meals.find(x => x.id === id); if (!m) break;
       const day = (db.days[cur] ||= {entries:[]}), meal = cur === todayKey() ? mealByTime() : (m.items[0]?.meal || 'ručak');
-      for (const it of m.items) day.entries.push({...it, id:uid(), kind:'food', meal, ts:Date.now()});
+      for (const it of m.items) day.entries.push({...it, id:uid(), kind:'food', meal, mealRef:m.id, ts:Date.now()});
       save(); tab = 'dan'; render(); toast(`Dodano: ${m.name}`); break;
     }
     case 'mealdel': if (confirm('Obrisati spremljeni obrok?')) { db.meals = db.meals.filter(x => x.id !== id); save(); if (mealDraft) closeSheet(); render(); } break;
-    case 'mealedit': { const m = db.meals.find(x => x.id === id); if (!m) break; mealDraft = JSON.parse(JSON.stringify(m)); renderMealEdit(); break; }
+    case 'mealedit': { const m = db.meals.find(x => x.id === id); if (!m) break; mealDraft = JSON.parse(JSON.stringify(m));
+      mealDraft.items.forEach(i => i._src = i.name); renderMealEdit(); break; }
     case 'midel': mealDraft.items.splice(+el.dataset.i, 1); renderMealEdit(); break;
     case 'miadd': mealDraft.items.push({kind:'food', name:'', amount:'', grams:null, minutes:null, kcal:0, p:0, c:0, f:0, meal:''}); renderMealEdit();
       setTimeout(() => document.querySelector('#sheet .mi:last-of-type .ci-name')?.focus(), 50); break;
@@ -954,10 +962,18 @@ document.addEventListener('click', e => {
       row.querySelector('[data-mf="kcal"]').value = it.kcal; onMealInput(row.querySelector('[data-mf="kcal"]')); break; }
     case 'mealsave': {
       const d = mealDraft; d.name = d.name.trim() || 'Obrok';
-      d.items = d.items.filter(i => (i.name || '').trim() || +i.kcal).map(i => ({...i, name:(i.name || '').trim() || 'Namirnica',
-        kcal:Math.round(+i.kcal || 0), p:r1(i.p), c:r1(i.c), f:r1(i.f), grams:i.grams ? Math.round(i.grams) : null}));
+      const kept = d.items.filter(i => (i.name || '').trim() || +i.kcal);
+      d.items = d.items.filter(i => (i.name || '').trim() || +i.kcal).map(({_src, ...i}) => ({...i, name:(i.name || '').trim() || 'Namirnica',
+        kcal:Math.round(+i.kcal || 0), p:r1(i.p), c:r1(i.c), f:r1(i.f), grams:i.grams ? Math.round(i.grams) : null, unit:i.unit === 'ml' ? 'ml' : 'g'}));
       if (!d.items.length) { toast('Obrok treba barem jednu namirnicu'); break; }
       const ix = db.meals.findIndex(x => x.id === d.id); if (ix >= 0) db.meals[ix] = d;
+      // ažuriraj već upisane unose ovog obroka na prikazanom danu
+      const es = entriesOf(cur), hits = [];
+      kept.forEach((src, i) => { if (!src._src) return;
+        for (const e of es) if (e.kind !== 'activity' && (e.mealRef ? e.mealRef === d.id : true) && e.name === src._src) hits.push([e, d.items[i]]); });
+      if (hits.length && confirm(`${labelDate(cur)} već ima ${hits.length === 1 ? 'unos' : hits.length + ' unosa'} iz ovog obroka. Ažurirati i ${hits.length === 1 ? 'njega' : 'njih'}?`)) {
+        for (const [e, it] of hits) Object.assign(e, {name:it.name, amount:it.amount, grams:it.grams, unit:it.unit, kcal:it.kcal, p:it.p, c:it.c, f:it.f, mealRef:d.id});
+      }
       save(); closeSheet(); render(); toast('Obrok spremljen'); break;
     }
     case 'showkey': { const k = $('#keyIn'); k.type = k.type === 'password' ? 'text' : 'password'; el.textContent = k.type === 'password' ? 'Prikaži' : 'Sakrij'; break; }
