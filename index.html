@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="hr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Zalogaj</title>
+<meta name="theme-color" content="#f5f2ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121110" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{
+  --bg:#f5f2ec;--surface:#fff;--surface2:#ece8e0;--text:#1c1a17;--muted:#716b61;--line:#e3ded4;
+  --accent:#e2552b;--accent-soft:#fbe3da;--on-accent:#fff;
+  --good:#1f8a58;--warn:#b97d0a;--bad:#cf3b3b;
+  --pc:#2f7fc1;--cc:#c98a10;--fc:#8e55b5;
+  --shadow:0 1px 2px rgba(0,0,0,.05),0 6px 18px rgba(0,0,0,.04);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#121110;--surface:#1c1a18;--surface2:#282522;--text:#f2eee7;--muted:#a39c91;--line:#33302b;
+  --accent:#ff6a3d;--accent-soft:#3b231a;--on-accent:#1a0d08;
+  --good:#3cc184;--warn:#e9ad37;--bad:#ff6b6b;
+  --pc:#5aa6e6;--cc:#e9ad37;--fc:#b98ae0;
+  --shadow:none;color-scheme:dark;
+}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{min-height:100dvh;overflow-x:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.app{max-width:560px;margin:0 auto;padding:0 16px calc(176px + env(safe-area-inset-bottom))}
+.app.notab{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding:calc(10px + env(safe-area-inset-top)) 0 6px;min-height:58px;display:flex;align-items:center}
+h1{font-size:24px;margin:0;letter-spacing:-.02em;font-weight:750}
+h2{font-size:15px;margin:0 0 10px;letter-spacing:.01em;text-transform:uppercase;color:var(--muted);font-weight:650}
+.datenav{display:flex;align-items:center;width:100%;justify-content:space-between}
+.iconbtn{width:42px;height:42px;border-radius:14px;border:0;background:var(--surface2);display:grid;place-items:center;font-size:22px;line-height:1}
+.iconbtn:disabled{opacity:.35}
+.datelbl{border:0;background:none;font-size:19px;font-weight:700;text-align:center}
+.datelbl small{display:block;font-size:12px;font-weight:500;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:16px;margin:12px 0;box-shadow:var(--shadow)}
+.muted{color:var(--muted)}.small{font-size:13px}
+.num{font-variant-numeric:tabular-nums}
+
+/* summary */
+.summary{display:flex;align-items:center;gap:16px}
+.ringbox{position:relative;width:128px;height:128px;flex:none}
+.ring{width:128px;height:128px}
+.ring circle{fill:none;stroke-width:11}
+.ring .track{stroke:var(--surface2)}
+.ring .prog{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .5s}
+.ring .prog.over{stroke:var(--bad)}
+.ringtxt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.ringtxt b{font-size:28px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.ringtxt span{font-size:11px;color:var(--muted);line-height:1.15;max-width:80px}
+.ringtxt.over b{color:var(--bad)}
+.stats{flex:1;display:grid;gap:8px;min-width:0}
+.stat{display:flex;justify-content:space-between;align-items:baseline;gap:8px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.stat:last-child{border:0;padding:0}
+.stat span{color:var(--muted);font-size:14px}
+.stat b{font-variant-numeric:tabular-nums;font-size:17px}
+.stat b.plus{color:var(--good)}
+
+.macros{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:12px}
+.mac span{display:block;font-size:12px;color:var(--muted)}
+.mac b{font-variant-numeric:tabular-nums}
+.bar{height:6px;border-radius:6px;background:var(--surface2);margin-top:6px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:6px}
+
+.notice{border-color:var(--accent);background:var(--accent-soft)}
+.notice p{margin:4px 0 12px}
+
+/* lists */
+.list{padding:6px 0}
+.lh{display:flex;justify-content:space-between;padding:8px 16px 4px;font-size:13px;font-weight:650;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+.row{display:flex;width:100%;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px;border:0;background:none;text-align:left}
+.row+.row{border-top:1px solid var(--line)}
+.row .nm{min-width:0}
+.row .nm small{display:block;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .kc{font-variant-numeric:tabular-nums;font-weight:650;white-space:nowrap}
+.row .kc.plus{color:var(--good)}
+.empty{text-align:center;padding:28px 12px;color:var(--muted)}
+.empty b{display:block;color:var(--text);font-size:17px;margin-bottom:6px}
+.linkbtn{display:block;margin:4px auto 0;border:0;background:none;color:var(--accent);font-weight:650;padding:10px}
+
+/* buttons & forms */
+.btn{border:0;background:var(--accent);color:var(--on-accent);font-weight:700;border-radius:14px;padding:12px 16px;min-height:46px}
+.btn.ghost{background:var(--surface2);color:var(--text)}
+.btn.sm{padding:8px 12px;min-height:38px;font-size:14px;border-radius:12px}
+.btn.danger{background:none;color:var(--bad);border:1px solid var(--bad)}
+.btn:disabled{opacity:.5}
+.btns{display:flex;gap:10px;margin-top:14px}
+.btns .btn{flex:1}
+label.f{display:block;margin:0 0 12px;font-size:14px;color:var(--muted)}
+label.f>input,label.f>select,.inp{display:block;width:100%;margin-top:5px;background:var(--surface2);border:1px solid transparent;border-radius:12px;padding:11px 12px;font-size:16px;color:var(--text)}
+label.f>input:focus,label.f>select:focus,.inp:focus{outline:none;border-color:var(--accent)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 10px}
+label.chk{display:flex;gap:10px;align-items:center;margin:4px 0 12px;font-size:15px}
+label.chk input{width:22px;height:22px;accent-color:var(--accent);flex:none}
+.sumbox{background:var(--surface2);border-radius:14px;padding:12px;font-size:14px}
+.sumbox div{display:flex;justify-content:space-between;padding:2px 0}
+.sumbox b{font-variant-numeric:tabular-nums}
+.warnline{color:var(--warn);font-size:13px;margin-top:6px}
+.keyrow{display:flex;gap:8px;align-items:flex-end}
+.keyrow label{flex:1;margin:0}
+
+/* composer */
+#composer{position:fixed;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom));z-index:10;padding:8px 12px;background:linear-gradient(to top,var(--bg) 70%,transparent)}
+.comp{max-width:536px;margin:0 auto;display:flex;align-items:flex-end;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:26px;padding:6px;box-shadow:var(--shadow)}
+.comp textarea{flex:1;border:0;background:none;resize:none;padding:10px 4px;max-height:120px;font-size:16px;line-height:1.35;outline:none}
+.mic,.send{width:46px;height:46px;border-radius:50%;border:0;display:grid;place-items:center;flex:none}
+.mic{background:var(--accent);color:var(--on-accent)}
+.mic.on{background:var(--bad);animation:pulse 1.2s infinite}
+.send{background:var(--surface2);color:var(--text)}
+.send:disabled{opacity:.4}
+.send.busy svg{display:none}
+.send.busy::after{content:"";width:18px;height:18px;border-radius:50%;border:2.5px solid var(--muted);border-top-color:transparent;animation:spin .7s linear infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(207,59,59,.5)}70%{box-shadow:0 0 0 12px rgba(207,59,59,0)}100%{box-shadow:0 0 0 0 rgba(207,59,59,0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.mic svg,.send svg{width:22px;height:22px}
+
+/* tabs */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:11;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs .in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
+nav.tabs button{border:0;background:none;height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:12px;color:var(--muted)}
+nav.tabs button svg{width:24px;height:24px}
+nav.tabs button.on{color:var(--accent);font-weight:650}
+
+/* sheet */
+.scrim{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.open{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;max-height:92dvh;overflow:auto;background:var(--surface);border-radius:24px 24px 0 0;padding:8px 16px calc(20px + env(safe-area-inset-bottom));transform:translateY(105%);transition:transform .25s ease;max-width:560px;margin:0 auto}
+.sheet:not(.open){visibility:hidden;transition:transform .25s ease,visibility 0s .25s}
+.sheet.open{transform:none}
+.grab{width:40px;height:5px;border-radius:5px;background:var(--line);margin:4px auto 12px}
+.sheet h3{margin:0 0 6px;font-size:20px}
+.quote{font-size:14px;color:var(--muted);background:var(--surface2);border-radius:12px;padding:10px 12px;margin:8px 0 12px;display:flex;gap:8px;justify-content:space-between;align-items:flex-start}
+.quote button{border:0;background:none;color:var(--accent);font-weight:650;font-size:13px;white-space:nowrap;padding:0}
+.ci{border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-bottom:10px}
+.ci.act{border-color:color-mix(in srgb,var(--good) 45%,var(--line))}
+.ci-top{display:flex;gap:8px;align-items:center}
+.ci-name{flex:1;min-width:0;border:0;background:none;font-weight:650;font-size:16px;padding:2px 0;outline:none;border-bottom:1px dashed transparent}
+.ci-name:focus{border-bottom-color:var(--muted)}
+.x{border:0;background:var(--surface2);width:30px;height:30px;border-radius:50%;font-size:18px;line-height:1;flex:none}
+.ci-sub{font-size:13px;color:var(--muted);margin:2px 0 8px}
+.ci-fields{display:flex;gap:8px}
+.ci-fields label{flex:1;display:flex;align-items:center;background:var(--surface2);border-radius:10px;padding:0 10px}
+.ci-fields input{width:100%;border:0;background:none;padding:9px 0;font-size:16px;outline:none;font-variant-numeric:tabular-nums}
+.ci-fields span{color:var(--muted);font-size:13px}
+.ci-mac{font-size:12px;color:var(--muted);margin-top:6px;font-variant-numeric:tabular-nums}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;margin-left:4px;vertical-align:1px}
+.tag.warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.total{display:flex;justify-content:space-between;font-weight:700;padding:8px 2px;font-variant-numeric:tabular-nums}
+.seg{display:flex;background:var(--surface2);border-radius:12px;padding:3px;margin-bottom:12px}
+.seg button{flex:1;border:0;background:none;padding:8px;border-radius:10px;font-weight:600;color:var(--muted)}
+.seg button.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+
+/* weight */
+.wentry{display:flex;gap:8px;align-items:stretch}
+.wentry input{flex:1;min-width:0}
+.wentry .inp{margin:0}
+.wstats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.wstats b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.wstats span{font-size:12px;color:var(--muted)}
+.chips{display:flex;gap:6px;margin-bottom:8px}
+.chips button{border:1px solid var(--line);background:none;border-radius:99px;padding:5px 12px;font-size:13px;color:var(--muted)}
+.chips button.on{background:var(--text);color:var(--bg);border-color:var(--text)}
+.chart{width:100%;height:auto;display:block}
+.chart text{fill:var(--muted);font-size:10px;font-family:inherit}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .dot{fill:var(--muted);opacity:.55}
+.chart .trend{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.wl{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.wl:first-child{border:0}
+.wl button{border:0;background:none;color:var(--muted);font-size:18px;padding:4px 8px}
+
+.mh{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.mh span{white-space:nowrap;font-variant-numeric:tabular-nums}
+.meal p{margin:4px 0 10px}
+.row2{display:flex;gap:8px}
+
+#toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translate(-50%,20px);z-index:30;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:14px;font-size:14px;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:all .25s;text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="top" id="hdr"></header>
+  <main id="view"></main>
+</div>
+
+<div id="composer">
+  <div class="comp">
+    <button class="mic" id="mic" aria-label="Diktiraj">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+    </button>
+    <textarea id="inp" rows="1" enterkeyhint="send" placeholder="Što si jeo ili radio?"></textarea>
+    <button class="send" id="send" aria-label="Obradi" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+    </button>
+  </div>
+</div>
+
+<nav class="tabs"><div class="in">
+  <button data-tab="dan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 8 8h-8z" fill="currentColor" stroke="none"/></svg>Dan</button>
+  <button data-tab="tezina"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"/><path d="M15 7h5v5"/></svg>Težina</button>
+  <button data-tab="obroci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v8a3 3 0 0 0 3 3v7M8 3v6M11 3v8a3 3 0 0 1-3 3"/><path d="M17 21V3c-2 1-3 4-3 8h3"/></svg>Obroci</button>
+  <button data-tab="postavke"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Postavke</button>
+</div></nav>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet"></div>
+<div id="toast"></div>
+<input type="file" id="impFile" accept="application/json,.json" hidden>
+
+<script>
+'use strict';
+const KEY = 'zalogaj-v1';
+const API = 'https://api.anthropic.com/v1/messages';
+const DEF = {apiKey:'', model:'claude-haiku-5-5', sex:'m', age:'', height:'', activity:1.375, goalRate:-0.25,
+             proteinPerKg:1.8, addExercise:true, autoProcess:true, useAdaptive:false};
+const NUMKEYS = ['age','height','activity','goalRate','proteinPerKg'];
+const MEALS = ['doručak','ručak','večera','užina'];
+const DAYN = ['ned','pon','uto','sri','čet','pet','sub'];
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const r1 = v => Math.round((+v || 0) * 10) / 10;
+const fmt = (n, d = 0) => (+n || 0).toLocaleString('hr-HR', {minimumFractionDigits:d, maximumFractionDigits:d});
+const sgn = (n, d = 1) => (n > 0 ? '+' : n < 0 ? '−' : '±') + fmt(Math.abs(n), d);
+const pad = n => String(n).padStart(2, '0');
+const keyOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseKey = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (k, n) => { const d = parseKey(k); d.setDate(d.getDate() + n); return keyOf(d); };
+const todayKey = () => keyOf(new Date());
+const dayDiff = (a, b) => Math.round((parseKey(b) - parseKey(a)) / 864e5);
+const labelDate = k => { const d = parseKey(k); return `${DAYN[d.getDay()]}, ${d.getDate()}. ${d.getMonth() + 1}.`; };
+const shortDate = k => { const d = parseKey(k); return `${d.getDate()}.${d.getMonth() + 1}.`; };
+
+/* ---------- storage ---------- */
+function loadDb() {
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+  d = d || {};
+  return {settings:{...DEF, ...(d.settings || {})}, days:d.days || {}, weights:d.weights || {}, meals:d.meals || []};
+}
+let db = loadDb();
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(db)); }
+  catch (e) { toast('Spremanje nije uspjelo: ' + e.message); }
+}
+const S = () => db.settings;
+
+let tab = 'dan', cur = todayKey(), pending = null, busy = false, wRange = 30, editKind = 'food';
+
+/* ---------- calculations ---------- */
+const entriesOf = k => db.days[k]?.entries || [];
+function totals(k) {
+  const t = {kcal:0, p:0, c:0, f:0, act:0};
+  for (const e of entriesOf(k)) {
+    if (e.kind === 'activity') t.act += +e.kcal || 0;
+    else { t.kcal += +e.kcal || 0; t.p += +e.p || 0; t.c += +e.c || 0; t.f += +e.f || 0; }
+  }
+  return t;
+}
+function weightAt(k) {
+  const ks = Object.keys(db.weights).sort();
+  if (!ks.length) return null;
+  let w = db.weights[ks[0]];
+  for (const x of ks) { if (x <= k) w = db.weights[x]; else break; }
+  return +w;
+}
+function bmr(w) {
+  const s = S();
+  if (!w || !s.age || !s.height) return null;
+  return 10 * w + 6.25 * s.height - 5 * s.age + (s.sex === 'f' ? -161 : 5);
+}
+function adaptive() {
+  const end = addDays(todayKey(), -1), start = addDays(end, -27);
+  const ks = [];
+  for (let k = start; k <= end; k = addDays(k, 1)) ks.push(k);
+  const wp = ks.filter(k => db.weights[k] != null).map(k => [dayDiff(start, k), +db.weights[k]]);
+  const fd = ks.filter(k => entriesOf(k).some(e => e.kind !== 'activity'));
+  if (wp.length < 8 || fd.length < 14) return {ready:false, wn:wp.length, fn:fd.length};
+  const n = wp.length, mx = wp.reduce((a, p) => a + p[0], 0) / n, my = wp.reduce((a, p) => a + p[1], 0) / n;
+  let sxy = 0, sxx = 0;
+  for (const [x, y] of wp) { sxy += (x - mx) * (y - my); sxx += (x - mx) ** 2; }
+  const slope = sxx ? sxy / sxx : 0;
+  const avgIn = fd.reduce((a, k) => a + totals(k).kcal, 0) / fd.length;
+  const avgAct = fd.reduce((a, k) => a + totals(k).act, 0) / fd.length;
+  const total = avgIn - slope * 7700;
+  const base = S().addExercise ? total - avgAct : total;
+  if (base < 1000 || base > 6000) return {ready:false, wn:wp.length, fn:fd.length, odd:true};
+  return {ready:true, total:Math.round(total), base:Math.round(base), weekly:slope * 7, avgIn:Math.round(avgIn), n:fd.length};
+}
+function formulaTdee(k) { const b = bmr(weightAt(k)); return b ? b * S().activity : null; }
+function baseTdee(k) {
+  if (S().useAdaptive) { const a = adaptive(); if (a.ready) return a.base; }
+  return formulaTdee(k);
+}
+function target(k) { const t = baseTdee(k); return t == null ? null : Math.round(t + S().goalRate * 7700 / 7); }
+function mealByTime(d = new Date()) {
+  const h = d.getHours();
+  return h < 10 ? 'doručak' : h < 12 ? 'užina' : h < 16 ? 'ručak' : h < 18 ? 'užina' : h < 22 ? 'večera' : 'užina';
+}
+
+/* ---------- rendering ---------- */
+function render() {
+  renderHeader();
+  const v = $('#view');
+  v.innerHTML = tab === 'dan' ? dayHtml() : tab === 'tezina' ? weightHtml() : tab === 'obroci' ? mealsHtml() : settingsHtml();
+  if (tab === 'postavke') fillSettings();
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  $('#composer').hidden = tab !== 'dan';
+  $('#app').classList.toggle('notab', tab !== 'dan');
+}
+function renderHeader() {
+  const h = $('#hdr');
+  if (tab === 'dan') {
+    const t = todayKey();
+    const sub = cur === t ? 'danas' : cur === addDays(t, -1) ? 'jučer · vrati na danas' : 'vrati na danas';
+    h.innerHTML = `<div class="datenav">
+      <button class="iconbtn" data-act="prev" aria-label="Prethodni dan">‹</button>
+      <button class="datelbl" data-act="today">${labelDate(cur)}<small>${sub}</small></button>
+      <button class="iconbtn" data-act="next" aria-label="Sljedeći dan" ${cur >= t ? 'disabled' : ''}>›</button></div>`;
+  } else {
+    h.innerHTML = `<h1>${{tezina:'Težina', obroci:'Moji obroci', postavke:'Postavke'}[tab]}</h1>`;
+  }
+}
+
+function dayHtml() {
+  const s = S(), k = cur, t = totals(k), tgt = target(k), w = weightAt(k);
+  let h = '';
+  if (tgt == null) {
+    h += `<div class="card notice"><b>Dovrši profil</b><p>Upiši dob, visinu i težinu da izračunam dnevni cilj.</p>
+      <button class="btn sm" data-act="tab" data-tab="postavke">Otvori postavke</button></div>`;
+  }
+  const budget = tgt != null ? tgt + (s.addExercise ? t.act : 0) : null;
+  const left = budget != null ? Math.round(budget - t.kcal) : null;
+  const C = 2 * Math.PI * 52, frac = budget ? Math.min(t.kcal / budget, 1) : 0, over = left != null && left < 0;
+  h += `<section class="card summary">
+    <div class="ringbox">
+      <svg class="ring" viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="track"/>
+      <circle cx="60" cy="60" r="52" class="prog ${over ? 'over' : ''}" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - frac)}" transform="rotate(-90 60 60)"/></svg>
+      <div class="ringtxt ${over ? 'over' : ''}"><b>${left == null ? fmt(t.kcal) : fmt(Math.abs(left))}</b>
+      <span>${left == null ? 'kcal uneseno' : over ? 'kcal preko cilja' : 'kcal preostalo'}</span></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><span>Cilj</span><b>${tgt == null ? '–' : fmt(tgt)}</b></div>
+      <div class="stat"><span>Hrana</span><b>${fmt(t.kcal)}</b></div>
+      <div class="stat"><span>Aktivnost</span><b class="${t.act ? 'plus' : ''}">${t.act ? '+' + fmt(t.act) : '0'}</b></div>
+    </div></section>`;
+  const protT = w ? Math.round(w * s.proteinPerKg) : null;
+  const pPct = protT ? Math.min(t.p / protT, 1) * 100 : 0;
+  const kc = t.kcal || 1;
+  h += `<section class="card macros">
+    <div class="mac"><span>Proteini</span><b>${fmt(t.p)}</b>${protT ? ` <span style="display:inline" class="small">/ ${protT} g</span>` : ' g'}
+      <div class="bar"><i style="width:${pPct}%;background:var(--pc)"></i></div></div>
+    <div class="mac"><span>Ugljikohidrati</span><b>${fmt(t.c)} g</b>
+      <div class="bar"><i style="width:${t.kcal ? t.c * 4 / kc * 100 : 0}%;background:var(--cc)"></i></div></div>
+    <div class="mac"><span>Masti</span><b>${fmt(t.f)} g</b>
+      <div class="bar"><i style="width:${t.kcal ? t.f * 9 / kc * 100 : 0}%;background:var(--fc)"></i></div></div>
+  </section>`;
+
+  const es = entriesOf(k);
+  if (!es.length) {
+    h += `<div class="empty"><b>Još ništa za ovaj dan</b>Pritisni mikrofon i reci npr.<br>„za doručak tri jaja i kriška kruha“<br>ili „trčao sam 30 minuta lagano“.</div>`;
+  } else {
+    const groups = {};
+    for (const e of es) {
+      const g = e.kind === 'activity' ? 'aktivnost' : (MEALS.includes(e.meal) ? e.meal : 'ostalo');
+      (groups[g] ||= []).push(e);
+    }
+    for (const g of [...MEALS, 'ostalo', 'aktivnost']) {
+      if (!groups[g]) continue;
+      const sum = groups[g].reduce((a, e) => a + (+e.kcal || 0), 0), act = g === 'aktivnost';
+      h += `<div class="card list"><div class="lh"><span>${g}</span><span class="num">${act ? '+' : ''}${fmt(sum)} kcal</span></div>
+        ${groups[g].map(e => `<button class="row" data-act="edit" data-id="${e.id}">
+          <span class="nm">${esc(e.name)}<small>${esc(e.amount || (act && e.minutes ? e.minutes + ' min' : e.grams ? fmt(e.grams) + ' g' : ''))}</small></span>
+          <span class="kc ${act ? 'plus' : ''}">${act ? '+' : ''}${fmt(e.kcal)}</span></button>`).join('')}</div>`;
+    }
+  }
+  h += `<button class="linkbtn" data-act="manual">+ Ručni unos</button>`;
+  return h;
+}
+
+/* weight */
+function weightSeries() {
+  const ks = Object.keys(db.weights).sort();
+  let ema = null, prev = null;
+  return ks.map(k => {
+    const w = +db.weights[k];
+    if (ema == null) ema = w;
+    else { const a = 1 - Math.pow(0.9, Math.max(1, dayDiff(prev, k))); ema += a * (w - ema); }
+    prev = k;
+    return {k, w, t:ema};
+  });
+}
+function trendChange(ser, days) {
+  if (ser.length < 2) return null;
+  const last = ser.at(-1), from = addDays(last.k, -days);
+  if (ser[0].k > from) return null;
+  let base = ser[0];
+  for (const p of ser) { if (p.k <= from) base = p; else break; }
+  return last.t - base.t;
+}
+function weightHtml() {
+  const t = todayKey(), ser = weightSeries(), last = ser.at(-1);
+  const c7 = trendChange(ser, 7), c30 = trendChange(ser, 30);
+  let h = `<div class="card"><h2>Vaganje</h2>
+    <div class="wentry"><input class="inp" id="wDate" type="date" value="${t}" max="${t}" style="flex:1.3">
+    <input class="inp" id="wIn" type="number" inputmode="decimal" step="0.1" min="30" max="300" placeholder="kg" value="${db.weights[t] ?? ''}">
+    <button class="btn" data-act="wsave">Spremi</button></div>
+    <p class="muted small" style="margin:8px 0 0">Najbolje ujutro, nakon WC-a, prije jela. Trend izglađuje dnevne oscilacije vode.</p></div>`;
+  if (last) {
+    h += `<div class="card wstats">
+      <div><b>${fmt(last.t, 1)}</b><span>trend (kg)</span></div>
+      <div><b>${c7 == null ? '–' : sgn(c7)}</b><span>7 dana</span></div>
+      <div><b>${c30 == null ? '–' : sgn(c30)}</b><span>30 dana</span></div></div>`;
+    const from = wRange ? addDays(last.k, -wRange) : '0000';
+    h += `<div class="card"><div class="chips">${[[30, '30 d'], [90, '90 d'], [365, 'godina'], [0, 'sve']]
+        .map(([v, l]) => `<button data-act="wrange" data-v="${v}" class="${wRange === v ? 'on' : ''}">${l}</button>`).join('')}</div>
+      ${chartSvg(ser.filter(p => p.k >= from))}</div>`;
+  }
+  const a = adaptive(), ft = formulaTdee(t);
+  h += `<div class="card"><h2>Stvarna potrošnja</h2>`;
+  if (a.ready) {
+    h += `<div class="sumbox">
+      <div><span>Iz tvojih podataka (4 tj.)</span><b>${fmt(a.total)} kcal</b></div>
+      <div><span>Formula (Mifflin-St Jeor)</span><b>${ft ? fmt(ft) + ' kcal' : '–'}</b></div>
+      <div><span>Prosječan unos</span><b>${fmt(a.avgIn)} kcal</b></div>
+      <div><span>Tempo trenda</span><b>${sgn(a.weekly, 2)} kg/tj</b></div></div>
+      <label class="chk" style="margin-top:12px"><input type="checkbox" data-s="useAdaptive" ${S().useAdaptive ? 'checked' : ''}> Koristi ovu procjenu za dnevni cilj</label>
+      <p class="muted small" style="margin:0">Pretpostavlja da su dani s unosom hrane zabilježeni u cijelosti.</p>`;
+  } else {
+    h += `<p class="muted small" style="margin:0">${a.odd ? 'Podaci za sada daju nerealnu procjenu – vjerojatno nisu svi obroci zabilježeni.' :
+      `Kad skupiš dovoljno podataka, izračunat ću stvarnu potrošnju iz unosa i promjene težine. Treba: <b>${a.fn}/14</b> dana s unosom hrane i <b>${a.wn}/8</b> vaganja u zadnja 4 tjedna.`}</p>`;
+  }
+  h += `</div>`;
+  if (ser.length) {
+    h += `<div class="card"><h2>Zadnja vaganja</h2>${ser.slice(-14).reverse().map(p =>
+      `<div class="wl"><span>${labelDate(p.k)}</span><span><b class="num">${fmt(p.w, 1)}</b> kg <button data-act="wdel" data-k="${p.k}" aria-label="Obriši">×</button></span></div>`).join('')}</div>`;
+  }
+  return h;
+}
+function chartSvg(ser) {
+  if (ser.length < 2) return `<p class="muted small">Graf se pojavljuje nakon dva vaganja u odabranom razdoblju.</p>`;
+  const W = 340, H = 180, L = 34, R = 8, T = 10, B = 22;
+  const x0 = ser[0].k, span = Math.max(1, dayDiff(x0, ser.at(-1).k));
+  let mn = Math.min(...ser.map(p => Math.min(p.w, p.t))), mx = Math.max(...ser.map(p => Math.max(p.w, p.t)));
+  if (mx - mn < 1) { const m = (mx + mn) / 2; mn = m - .5; mx = m + .5; }
+  const padv = (mx - mn) * .1; mn -= padv; mx += padv;
+  const X = k => L + (W - L - R) * dayDiff(x0, k) / span, Y = v => T + (H - T - B) * (1 - (v - mn) / (mx - mn));
+  let g = '';
+  for (let i = 0; i <= 3; i++) {
+    const v = mn + (mx - mn) * i / 3, y = Y(v).toFixed(1);
+    g += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y}" y2="${y}"/><text x="${L - 5}" y="${+y + 3}" text-anchor="end">${fmt(v, 1)}</text>`;
+  }
+  g += `<text x="${L}" y="${H - 6}">${shortDate(x0)}</text><text x="${W - R}" y="${H - 6}" text-anchor="end">${shortDate(ser.at(-1).k)}</text>`;
+  const dots = ser.map(p => `<circle class="dot" cx="${X(p.k).toFixed(1)}" cy="${Y(p.w).toFixed(1)}" r="${ser.length > 90 ? 1.8 : 3}"/>`).join('');
+  const path = ser.map((p, i) => `${i ? 'L' : 'M'}${X(p.k).toFixed(1)},${Y(p.t).toFixed(1)}`).join('');
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Graf težine">${g}${dots}<path class="trend" d="${path}"/></svg>`;
+}
+
+/* meals */
+function mealsHtml() {
+  if (!db.meals.length) {
+    return `<div class="card empty"><b>Nema spremljenih obroka</b>Kad potvrđuješ unos, označi „Spremi i kao obrok“. Spremljene obroke dodaješ jednim klikom, a Claude ih prepoznaje i kad ih spomeneš glasom („moj standardni doručak“).</div>`;
+  }
+  const where = cur === todayKey() ? 'danas' : labelDate(cur);
+  return db.meals.map(m => {
+    const kc = m.items.reduce((a, i) => a + (+i.kcal || 0), 0), p = m.items.reduce((a, i) => a + (+i.p || 0), 0);
+    return `<div class="card meal"><div class="mh"><b>${esc(m.name)}</b><span>${fmt(kc)} kcal</span></div>
+      <p class="muted small">${esc(m.items.map(i => i.name).join(', '))} · P ${fmt(p)} g</p>
+      <div class="row2"><button class="btn sm" data-act="mealadd" data-id="${m.id}">Dodaj (${where})</button>
+      <button class="btn sm ghost" data-act="mealdel" data-id="${m.id}">Obriši</button></div></div>`;
+  }).join('');
+}
+
+/* settings */
+function settingsHtml() {
+  const t = todayKey();
+  return `<div class="card"><h2>Profil</h2>
+    <div class="grid2">
+      <label class="f">Spol<select data-s="sex"><option value="m">muški</option><option value="f">ženski</option></select></label>
+      <label class="f">Dob<input data-s="age" type="number" inputmode="numeric" min="14" max="100"></label>
+      <label class="f">Visina (cm)<input data-s="height" type="number" inputmode="numeric" min="120" max="230"></label>
+      <label class="f">Težina danas (kg)<input id="setW" type="number" inputmode="decimal" step="0.1" value="${db.weights[t] ?? ''}" placeholder="${weightAt(t) ?? ''}"></label>
+    </div>
+    <label class="f">Svakodnevna aktivnost (bez treninga)<select data-s="activity">
+      <option value="1.2">Sjedilački (uglavnom sjedim)</option>
+      <option value="1.375">Lagano aktivan (puno hodanja)</option>
+      <option value="1.55">Aktivan (posao na nogama)</option>
+      <option value="1.725">Vrlo aktivan (težak fizički rad)</option></select></label>
+    <p class="muted small" style="margin:-4px 0 0">Treninge bilježiš posebno, pa ih ovdje ne računaj.</p></div>
+
+  <div class="card"><h2>Cilj</h2>
+    <label class="f">Tempo<select data-s="goalRate">
+      <option value="-0.75">Mršavljenje 0,75 kg/tj.</option><option value="-0.5">Mršavljenje 0,5 kg/tj.</option>
+      <option value="-0.25">Mršavljenje 0,25 kg/tj.</option><option value="0">Održavanje</option>
+      <option value="0.25">Dobivanje 0,25 kg/tj.</option><option value="0.5">Dobivanje 0,5 kg/tj.</option></select></label>
+    <label class="f">Proteini (g po kg tjelesne mase)<input data-s="proteinPerKg" type="number" inputmode="decimal" step="0.1" min="0.8" max="3"></label>
+    <label class="chk"><input type="checkbox" data-s="addExercise"> Kalorije od aktivnosti dodaj u dnevni budžet</label>
+    <div class="sumbox" id="sumBox"></div></div>
+
+  <div class="card"><h2>Claude API</h2>
+    <div class="keyrow"><label class="f">API ključ<input data-s="apiKey" id="keyIn" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label>
+    <button class="btn ghost sm" data-act="showkey" style="min-height:46px">Prikaži</button></div>
+    <label class="f" style="margin-top:12px">Model<select data-s="model">
+      <option value="claude-haiku-5-5">Haiku 5.5 – brz i najjeftiniji</option>
+      <option value="claude-sonnet-5-5">Sonnet 5.5 – precizniji, skuplji</option></select></label>
+    <label class="chk"><input type="checkbox" data-s="autoProcess"> Obradi automatski nakon diktiranja</label>
+    <button class="btn ghost sm" data-act="testkey" id="testBtn">Testiraj ključ</button>
+    <p class="muted small" style="margin:10px 0 0">Ključ se čuva samo na ovom uređaju i šalje se isključivo Anthropicu.</p></div>
+
+  <div class="card"><h2>Podaci</h2>
+    <p class="muted small" style="margin:0 0 12px">Sve je spremljeno samo u ovom pregledniku. Povremeno napravi sigurnosnu kopiju.</p>
+    <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
+    <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
+    <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
+  <p class="muted small" style="text-align:center">Zalogaj 1.0</p>`;
+}
+function fillSettings() {
+  const s = S();
+  document.querySelectorAll('#view [data-s]').forEach(el => {
+    const v = s[el.dataset.s];
+    if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? '';
+  });
+  updateSumBox();
+}
+function updateSumBox() {
+  const box = $('#sumBox'); if (!box) return;
+  const t = todayKey(), w = weightAt(t), b = bmr(w), tdee = baseTdee(t), tgt = target(t);
+  if (!b) { box.innerHTML = `<span class="muted">Upiši dob, visinu i težinu za izračun.</span>`; return; }
+  box.innerHTML = `<div><span>Bazalni metabolizam</span><b>${fmt(b)} kcal</b></div>
+    <div><span>Dnevna potrošnja${S().useAdaptive && adaptive().ready ? ' (iz podataka)' : ''}</span><b>${fmt(tdee)} kcal</b></div>
+    <div><span>Dnevni cilj</span><b>${fmt(tgt)} kcal</b></div>
+    <div><span>Proteini</span><b>${Math.round(w * S().proteinPerKg)} g</b></div>
+    ${tgt < b ? `<div class="warnline">Cilj je ispod bazalnog metabolizma – razmisli o sporijem tempu.</div>` : ''}`;
+}
+
+/* ---------- sheet ---------- */
+function openSheet(html) {
+  $('#sheet').innerHTML = `<div class="grab"></div>` + html;
+  $('#sheet').classList.add('open'); $('#scrim').classList.add('open');
+  if (!history.state?.sheet) history.pushState({sheet:1}, '');
+}
+function hideSheet() { $('#sheet').classList.remove('open'); $('#scrim').classList.remove('open'); pending = null; }
+function closeSheet() { if (history.state?.sheet) history.back(); else hideSheet(); }
+window.addEventListener('popstate', hideSheet);
+
+/* ---------- Claude ---------- */
+function systemPrompt(w, dateKey) {
+  const now = new Date();
+  const meals = db.meals.map(m => ({naziv:m.name, stavke:m.items.map(i => ({naziv:i.name, kolicina:i.amount, grami:i.grams, kcal:i.kcal, proteini:i.p, ugljikohidrati:i.c, masti:i.f}))}));
+  return `Ti si nutricionistički asistent u aplikaciji za praćenje kalorija. Korisnik na hrvatskom (često diktirano glasom, pa su moguće greške prepoznavanja govora) opisuje što je pojeo ili popio i/ili koju je tjelesnu aktivnost odradio. Sve pretvori u stavke pomoću alata zapisi_unos.
+
+HRANA
+- Svaku namirnicu zapiši kao zasebnu stavku. Složeno jelo (sarma, gulaš, pizza, burek, sendvič iz pekare) može biti jedna stavka.
+- Ako količina nije navedena, pretpostavi uobičajenu porciju odrasle osobe u Hrvatskoj. U polju kolicina čitljivo napiši količinu i grame, npr. "2 kriške (60 g)".
+- Procijeni grame, kcal, proteine, ugljikohidrate i masti prema standardnim nutritivnim tablicama. Budi realan; ulje, maslac i umaci često podižu kalorije.
+- Uzmi u obzir način pripreme ako je naveden (prženo, pohano, na žaru, kuhano).
+- Pića s kalorijama (sok, pivo, vino, kava s mlijekom ili šećerom, proteinski shake) su hrana. Voda, crna kava i nezaslađeni čaj zapisuju se samo ako su izričito spomenuti, s ~0 kcal.
+- Ako korisnik spomene neki od spremljenih obroka s popisa ispod, upotrijebi točno njegove stavke i vrijednosti (skaliraj ako je količina drukčija).
+- obrok: doručak, ručak, večera ili užina – prema tekstu, a ako nije rečeno, prema vremenu unosa.
+- sigurnost: "niska" kad je porcija ili sastav vrlo nejasan, "srednja" za uobičajene procjene, "visoka" kad su grami ili proizvod jasno navedeni.
+
+AKTIVNOST
+- Računaj NETO potrošnju: (MET − 1) × tjelesna masa × sati. Bazalni metabolizam je već uračunat drugdje.
+- Koristi MET vrijednosti iz Compendium of Physical Activities. Trening snage s utezima tipično 3,5–6 MET ovisno o intenzitetu; borilačke vještine i sparing 7–10 MET.
+- Ako trajanje nije navedeno, pretpostavi uobičajeno i to navedi u polju kolicina.
+
+OSTALO
+- Ako tekst ne sadrži ni hranu ni aktivnost, vrati praznu listu stavki i kratko objasni u polju napomena.
+- Napomene piši kratko, na hrvatskom.
+
+KONTEKST
+- Datum unosa: ${dateKey}${dateKey === todayKey() ? `, trenutno vrijeme ${pad(now.getHours())}:${pad(now.getMinutes())}` : ' (naknadni unos za raniji dan)'}
+- Tjelesna masa korisnika: ${w} kg
+- Spremljeni obroci: ${meals.length ? JSON.stringify(meals) : 'nema'}`;
+}
+const TOOL = {
+  name:'zapisi_unos',
+  description:'Zapiši prepoznate namirnice i aktivnosti iz korisnikovog unosa.',
+  input_schema:{type:'object', properties:{
+    stavke:{type:'array', items:{type:'object', properties:{
+      vrsta:{type:'string', enum:['hrana', 'aktivnost']},
+      naziv:{type:'string', description:'Kratak naziv na hrvatskom, npr. "Kuhana jaja" ili "Trčanje"'},
+      kolicina:{type:'string', description:'Čitljiva količina, npr. "3 kom (150 g)" ili "30 min, lagano"'},
+      grami:{type:'number', description:'Ukupna masa u gramima (samo hrana)'},
+      minute:{type:'number', description:'Trajanje u minutama (samo aktivnost)'},
+      kcal:{type:'number', description:'Ukupne kcal stavke; za aktivnost neto potrošnja'},
+      proteini:{type:'number'}, ugljikohidrati:{type:'number'}, masti:{type:'number'},
+      obrok:{type:'string', enum:['doručak', 'ručak', 'večera', 'užina']},
+      sigurnost:{type:'string', enum:['visoka', 'srednja', 'niska']}
+    }, required:['vrsta', 'naziv', 'kcal']}},
+    napomena:{type:'string'}
+  }, required:['stavke']}
+};
+async function callClaude(body) {
+  const s = S(), ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 45000);
+  let r;
+  try {
+    r = await fetch(API, {method:'POST', signal:ctl.signal, headers:{
+      'content-type':'application/json', 'x-api-key':s.apiKey.trim(), 'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true'}, body:JSON.stringify({model:s.model, ...body})});
+  } catch (e) {
+    throw new Error(e.name === 'AbortError' ? 'Zahtjev je predugo trajao. Pokušaj ponovno.' : 'Nema veze s poslužiteljem. Provjeri internet.');
+  } finally { clearTimeout(timer); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const m = j?.error?.message || r.statusText;
+    if (r.status === 401) throw new Error('API ključ nije ispravan.');
+    if (r.status === 429) throw new Error('Previše zahtjeva – pokušaj za minutu.');
+    if (r.status === 529 || r.status === 503) throw new Error('Claude je trenutno preopterećen. Pokušaj ponovno.');
+    if (/credit/i.test(m)) throw new Error('Na API računu nema kredita. Nadoplati u Claude Consoleu.');
+    throw new Error(`Greška ${r.status}: ${m}`);
+  }
+  return j;
+}
+async function askClaude(text) {
+  const w = weightAt(cur) || weightAt(todayKey()) || 80;
+  const j = await callClaude({max_tokens:2000, system:systemPrompt(w, cur), tools:[TOOL],
+    tool_choice:{type:'tool', name:'zapisi_unos'}, messages:[{role:'user', content:text}]});
+  const tu = (j.content || []).find(b => b.type === 'tool_use');
+  if (!tu || !Array.isArray(tu.input?.stavke)) throw new Error('Odgovor nije u očekivanom obliku. Pokušaj ponovno.');
+  return tu.input;
+}
+
+/* ---------- input & processing ---------- */
+const inp = $('#inp');
+function autosize() { inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 120) + 'px'; $('#send').disabled = busy || !inp.value.trim(); }
+function setBusy(b) { busy = b; $('#send').classList.toggle('busy', b); autosize(); }
+async function processInput() {
+  const text = inp.value.trim();
+  if (!text || busy) return;
+  if (!S().apiKey.trim()) { toast('Prvo upiši API ključ u Postavkama.'); return; }
+  setBusy(true);
+  try {
+    const res = await askClaude(text);
+    inp.value = ''; autosize();
+    openConfirm(text, res);
+  } catch (e) { toast(e.message, 4500); }
+  finally { setBusy(false); }
+}
+
+function normItem(x) {
+  const act = x.vrsta === 'aktivnost';
+  const it = {kind:act ? 'activity' : 'food', name:x.naziv || '', amount:x.kolicina || '',
+    grams:act ? null : (+x.grami ? Math.round(+x.grami) : null), minutes:act ? (+x.minute ? Math.round(+x.minute) : null) : null,
+    kcal:Math.round(+x.kcal || 0), p:act ? 0 : r1(x.proteini), c:act ? 0 : r1(x.ugljikohidrati), f:act ? 0 : r1(x.masti),
+    meal:act ? '' : (MEALS.includes(x.obrok) ? x.obrok : mealByTime()), conf:x.sigurnost || ''};
+  it.base = {q:act ? it.minutes : it.grams, kcal:it.kcal, p:it.p, c:it.c, f:it.f};
+  return it;
+}
+function openConfirm(text, res) {
+  pending = {text, items:res.stavke.map(normItem), note:res.napomena || ''};
+  const firstFood = pending.items.find(i => i.kind === 'food');
+  pending.meal = firstFood ? firstFood.meal : mealByTime();
+  renderConfirm();
+}
+function ciHtml(it, i) {
+  const food = it.kind === 'food';
+  return `<div class="ci ${food ? '' : 'act'}" data-i="${i}">
+    <div class="ci-top"><input class="ci-name" data-f="name" value="${esc(it.name)}" aria-label="Naziv">
+      <button class="x" data-act="cidel" data-i="${i}" aria-label="Ukloni">×</button></div>
+    <div class="ci-sub">${food ? '' : 'aktivnost · '}${esc(it.amount)}${it.conf === 'niska' ? '<span class="tag warn">gruba procjena</span>' : ''}</div>
+    <div class="ci-fields">
+      ${food ? `<label><input data-f="grams" type="number" inputmode="decimal" value="${it.grams ?? ''}" placeholder="–"><span>g</span></label>`
+             : `<label><input data-f="minutes" type="number" inputmode="numeric" value="${it.minutes ?? ''}" placeholder="–"><span>min</span></label>`}
+      <label><input data-f="kcal" type="number" inputmode="numeric" value="${it.kcal}"><span>kcal</span></label></div>
+    ${food ? `<div class="ci-mac">P ${fmt(it.p, 1)} g · UH ${fmt(it.c, 1)} g · M ${fmt(it.f, 1)} g</div>` : ''}</div>`;
+}
+function confirmTotals() {
+  const f = pending.items.filter(i => i.kind === 'food').reduce((a, i) => a + i.kcal, 0);
+  const a = pending.items.filter(i => i.kind === 'activity').reduce((a, i) => a + i.kcal, 0);
+  return `<span>Ukupno</span><span>${f ? fmt(f) + ' kcal' : ''}${f && a ? ' · ' : ''}${a ? '+' + fmt(a) + ' aktivnost' : ''}${!f && !a ? '0 kcal' : ''}</span>`;
+}
+function renderConfirm() {
+  const p = pending, hasFood = p.items.some(i => i.kind === 'food');
+  let h = `<h3>Provjeri unos</h3>
+    <div class="quote"><span>„${esc(p.text)}“</span><button data-act="retext">Ispravi tekst</button></div>`;
+  if (p.note) h += `<p class="muted small" style="margin:-4px 0 10px">${esc(p.note)}</p>`;
+  if (!p.items.length) {
+    h += `<div class="empty">Nisam prepoznao hranu ni aktivnost.</div>
+      <div class="btns"><button class="btn ghost" data-act="close">Zatvori</button><button class="btn" data-act="retext">Ispravi tekst</button></div>`;
+    openSheet(h); return;
+  }
+  if (hasFood) h += `<label class="f">Obrok<select id="cMeal">${MEALS.map(m => `<option ${m === p.meal ? 'selected' : ''}>${m}</option>`).join('')}</select></label>`;
+  h += `<div id="ciList">${p.items.map(ciHtml).join('')}</div><div class="total" id="cTotal">${confirmTotals()}</div>`;
+  if (hasFood) h += `<label class="chk"><input type="checkbox" id="cSave"> Spremi i kao obrok</label>
+    <input class="inp" id="cSaveName" placeholder="Naziv, npr. Standardni doručak" style="display:none;margin-bottom:8px">`;
+  h += `<div class="btns"><button class="btn ghost" data-act="close">Odustani</button><button class="btn" data-act="confirm">Spremi</button></div>`;
+  openSheet(h);
+}
+function onConfirmInput(el) {
+  const row = el.closest('.ci'); if (!row || !pending) return;
+  const it = pending.items[+row.dataset.i], f = el.dataset.f, v = el.value;
+  if (f === 'name') { it.name = v; return; }
+  const n = parseFloat(String(v).replace(',', '.'));
+  const b = it.base;
+  if (f === 'grams' || f === 'minutes') {
+    it[f] = isNaN(n) ? null : Math.round(n);
+    if (!isNaN(n) && b.q) {
+      const k = n / b.q;
+      it.kcal = Math.round(b.kcal * k); it.p = r1(b.p * k); it.c = r1(b.c * k); it.f = r1(b.f * k);
+      row.querySelector('[data-f="kcal"]').value = it.kcal;
+    }
+  } else if (f === 'kcal') {
+    it.kcal = isNaN(n) ? 0 : Math.round(n);
+    if (b.kcal) { const k = it.kcal / b.kcal; it.p = r1(b.p * k); it.c = r1(b.c * k); it.f = r1(b.f * k); }
+  }
+  const mac = row.querySelector('.ci-mac');
+  if (mac) mac.textContent = `P ${fmt(it.p, 1)} g · UH ${fmt(it.c, 1)} g · M ${fmt(it.f, 1)} g`;
+  $('#cTotal').innerHTML = confirmTotals();
+}
+function saveConfirm() {
+  const p = pending; if (!p) return;
+  const meal = $('#cMeal')?.value || p.meal;
+  const day = (db.days[cur] ||= {entries:[]});
+  const clean = it => ({id:uid(), kind:it.kind, name:it.name.trim() || (it.kind === 'food' ? 'Namirnica' : 'Aktivnost'), amount:it.amount,
+    grams:it.grams, minutes:it.minutes, kcal:it.kcal, p:it.p, c:it.c, f:it.f, meal:it.kind === 'food' ? meal : '', ts:Date.now()});
+  for (const it of p.items) day.entries.push(clean(it));
+  if ($('#cSave')?.checked) {
+    const name = ($('#cSaveName').value || '').trim() || p.text.slice(0, 40);
+    db.meals.push({id:uid(), name, items:p.items.filter(i => i.kind === 'food').map(clean).map(({id, ts, meal, ...r}) => ({...r, meal}))});
+  }
+  save(); closeSheet(); render();
+  toast('Spremljeno');
+}
+
+/* manual / edit */
+function entryForm(e) {
+  const isNew = !e, kind = e ? e.kind : editKind, food = kind === 'food';
+  e = e || {name:'', amount:'', grams:'', minutes:'', kcal:'', p:'', c:'', f:'', meal:mealByTime()};
+  return `<h3>${isNew ? 'Ručni unos' : 'Uredi stavku'}</h3>
+    ${isNew ? `<div class="seg"><button data-act="kind" data-k="food" class="${food ? 'on' : ''}">Hrana</button><button data-act="kind" data-k="activity" class="${food ? '' : 'on'}">Aktivnost</button></div>` : ''}
+    <label class="f">Naziv<input id="eName" value="${esc(e.name)}"></label>
+    <label class="f">Količina (opis)<input id="eAmount" value="${esc(e.amount)}" placeholder="${food ? 'npr. 1 tanjur' : 'npr. 45 min, umjereno'}"></label>
+    <div class="grid2">${food ? `<label class="f">Grami<input id="eQ" type="number" inputmode="decimal" value="${e.grams ?? ''}"></label>`
+                             : `<label class="f">Minute<input id="eQ" type="number" inputmode="numeric" value="${e.minutes ?? ''}"></label>`}
+      <label class="f">kcal<input id="eKcal" type="number" inputmode="numeric" value="${e.kcal ?? ''}"></label></div>
+    ${food ? `<div class="grid3"><label class="f">Proteini g<input id="eP" type="number" inputmode="decimal" value="${e.p ?? ''}"></label>
+      <label class="f">UH g<input id="eC" type="number" inputmode="decimal" value="${e.c ?? ''}"></label>
+      <label class="f">Masti g<input id="eF" type="number" inputmode="decimal" value="${e.f ?? ''}"></label></div>
+      <label class="f">Obrok<select id="eMeal">${MEALS.map(m => `<option ${m === e.meal ? 'selected' : ''}>${m}</option>`).join('')}</select></label>` : ''}
+    <div class="btns">${isNew ? `<button class="btn ghost" data-act="close">Odustani</button>` : `<button class="btn danger" data-act="edel" data-id="${e.id}">Obriši</button>`}
+      <button class="btn" data-act="esave" data-id="${isNew ? '' : e.id}" data-kind="${kind}">Spremi</button></div>`;
+}
+function saveEntry(id, kind) {
+  const num = s => { const v = parseFloat(($(s)?.value || '').replace(',', '.')); return isNaN(v) ? 0 : v; };
+  const name = $('#eName').value.trim(), kcal = Math.round(num('#eKcal'));
+  if (!name) { toast('Upiši naziv'); return; }
+  const food = kind === 'food';
+  const data = {name, amount:$('#eAmount').value.trim(), kcal,
+    grams:food ? (num('#eQ') || null) : null, minutes:food ? null : (num('#eQ') || null),
+    p:food ? r1(num('#eP')) : 0, c:food ? r1(num('#eC')) : 0, f:food ? r1(num('#eF')) : 0, meal:food ? $('#eMeal').value : ''};
+  const day = (db.days[cur] ||= {entries:[]});
+  if (id) Object.assign(day.entries.find(x => x.id === id) || {}, data);
+  else day.entries.push({id:uid(), kind, ts:Date.now(), ...data});
+  save(); closeSheet(); render();
+}
+
+/* ---------- speech ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, listening = false;
+function setMic(on) { listening = on; $('#mic').classList.toggle('on', on); $('#mic').setAttribute('aria-label', on ? 'Zaustavi' : 'Diktiraj'); }
+function toggleMic() {
+  if (listening) { rec?.stop(); return; }
+  if (!SR) { toast('Ovaj preglednik ne podržava diktiranje. Koristi mikrofon na tipkovnici.', 4500); inp.focus(); return; }
+  const before = inp.value.trim();
+  let finalText = '';
+  rec = new SR();
+  rec.lang = 'hr-HR'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+  rec.onresult = e => {
+    let fin = '', interim = '';
+    for (const r of e.results) (r.isFinal ? (fin += r[0].transcript + ' ') : (interim += r[0].transcript));
+    finalText = fin.trim();
+    inp.value = [before, (fin + interim).trim()].filter(Boolean).join(' ');
+    autosize();
+  };
+  rec.onerror = e => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('Dopusti pristup mikrofonu u postavkama preglednika.', 4500);
+    else if (e.error === 'network') toast('Diktiranje treba internetsku vezu.');
+    else if (e.error !== 'no-speech' && e.error !== 'aborted') toast('Greška diktiranja: ' + e.error);
+  };
+  rec.onend = () => { setMic(false); if (finalText && S().autoProcess) processInput(); };
+  try { rec.start(); setMic(true); } catch (e) { toast('Diktiranje nije uspjelo pokrenuti.'); }
+}
+
+/* ---------- misc ---------- */
+let toastT;
+function toast(msg, ms = 2500) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), ms);
+}
+function exportData() {
+  const data = {...db, settings:{...db.settings, apiKey:''}};
+  const blob = new Blob([JSON.stringify({app:'zalogaj', version:1, exported:new Date().toISOString(), data}, null, 1)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `zalogaj-kopija-${todayKey()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+async function importData(file) {
+  try {
+    const j = JSON.parse(await file.text()), d = j.data || j;
+    if (typeof d.days !== 'object' || typeof d.weights !== 'object') throw new Error();
+    if (!confirm('Uvoz će zamijeniti sve trenutne podatke. Nastaviti?')) return;
+    const key = db.settings.apiKey;
+    db = {settings:{...DEF, ...(d.settings || {}), apiKey:key}, days:d.days || {}, weights:d.weights || {}, meals:d.meals || []};
+    save(); render(); toast('Podaci uvezeni');
+  } catch (e) { toast('Datoteka nije ispravna kopija.'); }
+}
+async function testKey() {
+  if (!S().apiKey.trim()) { toast('Upiši ključ'); return; }
+  const b = $('#testBtn'); b.disabled = true; b.textContent = 'Provjeravam…';
+  try { await callClaude({max_tokens:5, messages:[{role:'user', content:'Odgovori samo: ok'}]}); toast('Ključ radi ✓'); }
+  catch (e) { toast(e.message, 4500); }
+  finally { b.disabled = false; b.textContent = 'Testiraj ključ'; }
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act],[data-tab]');
+  if (!el) return;
+  if (el.closest('nav.tabs') && el.dataset.tab) { tab = el.dataset.tab; render(); window.scrollTo(0, 0); return; }
+  const a = el.dataset.act, id = el.dataset.id;
+  switch (a) {
+    case 'tab': tab = el.dataset.tab; render(); window.scrollTo(0, 0); break;
+    case 'prev': cur = addDays(cur, -1); render(); break;
+    case 'next': if (cur < todayKey()) { cur = addDays(cur, 1); render(); } break;
+    case 'today': cur = todayKey(); render(); break;
+    case 'close': closeSheet(); break;
+    case 'retext': { const t = pending?.text || ''; closeSheet(); inp.value = t; autosize(); setTimeout(() => inp.focus(), 300); break; }
+    case 'cidel': pending.items.splice(+el.dataset.i, 1); renderConfirm(); break;
+    case 'confirm': saveConfirm(); break;
+    case 'manual': editKind = 'food'; openSheet(entryForm(null)); break;
+    case 'kind': editKind = el.dataset.k; openSheet(entryForm(null)); break;
+    case 'edit': { const en = entriesOf(cur).find(x => x.id === id); if (en) openSheet(entryForm(en)); break; }
+    case 'esave': saveEntry(id, el.dataset.kind); break;
+    case 'edel': { const d = db.days[cur]; if (d) d.entries = d.entries.filter(x => x.id !== id); save(); closeSheet(); render(); break; }
+    case 'wsave': {
+      const v = parseFloat(($('#wIn').value || '').replace(',', '.')), k = $('#wDate').value || todayKey();
+      if (!(v > 25 && v < 350)) { toast('Upiši ispravnu težinu'); break; }
+      db.weights[k] = r1(v); save(); render(); toast('Težina spremljena'); break;
+    }
+    case 'wdel': delete db.weights[el.dataset.k]; save(); render(); break;
+    case 'wrange': wRange = +el.dataset.v; render(); break;
+    case 'mealadd': {
+      const m = db.meals.find(x => x.id === id); if (!m) break;
+      const day = (db.days[cur] ||= {entries:[]}), meal = cur === todayKey() ? mealByTime() : (m.items[0]?.meal || 'ručak');
+      for (const it of m.items) day.entries.push({...it, id:uid(), kind:'food', meal, ts:Date.now()});
+      save(); tab = 'dan'; render(); toast(`Dodano: ${m.name}`); break;
+    }
+    case 'mealdel': if (confirm('Obrisati spremljeni obrok?')) { db.meals = db.meals.filter(x => x.id !== id); save(); render(); } break;
+    case 'showkey': { const k = $('#keyIn'); k.type = k.type === 'password' ? 'text' : 'password'; el.textContent = k.type === 'password' ? 'Prikaži' : 'Sakrij'; break; }
+    case 'testkey': testKey(); break;
+    case 'export': exportData(); break;
+    case 'import': $('#impFile').click(); break;
+    case 'wipe':
+      if (confirm('Obrisati SVE unose, težine i obroke? Ovo se ne može poništiti.')) {
+        const key = db.settings.apiKey; db = loadDb(); db = {settings:{...db.settings, apiKey:key}, days:{}, weights:{}, meals:[]};
+        save(); render(); toast('Podaci obrisani');
+      }
+      break;
+  }
+});
+document.addEventListener('input', e => {
+  if (e.target.closest('#sheet .ci')) onConfirmInput(e.target);
+  if (e.target.id === 'cSaveName') return;
+});
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (el.id === 'cSave') { $('#cSaveName').style.display = el.checked ? 'block' : 'none'; if (el.checked) $('#cSaveName').focus(); return; }
+  if (el.id === 'impFile') { if (el.files[0]) importData(el.files[0]); el.value = ''; return; }
+  if (el.id === 'setW') {
+    const v = parseFloat(el.value.replace(',', '.'));
+    if (v > 25 && v < 350) { db.weights[todayKey()] = r1(v); save(); updateSumBox(); }
+    return;
+  }
+  if (el.dataset.s) {
+    const k = el.dataset.s;
+    db.settings[k] = el.type === 'checkbox' ? el.checked : NUMKEYS.includes(k) ? (el.value === '' ? '' : +el.value) : el.value.trim();
+    save();
+    if (tab === 'postavke') updateSumBox(); else render();
+  }
+});
+$('#scrim').addEventListener('click', closeSheet);
+$('#mic').addEventListener('click', toggleMic);
+$('#send').addEventListener('click', processInput);
+inp.addEventListener('input', autosize);
+inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); processInput(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && tab === 'dan') render(); });
+
+render(); autosize();
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+navigator.storage?.persist?.().catch(() => {});
+</script>
+</body>
+</html>
