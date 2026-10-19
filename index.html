@@ -522,7 +522,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">Zalogaj 1.0</p>`;
+  <p class="muted small" style="text-align:center">Zalogaj 1.1</p>`;
 }
 function fillSettings() {
   const s = S();
@@ -570,8 +570,10 @@ HRANA
 - sigurnost: "niska" kad je porcija ili sastav vrlo nejasan, "srednja" za uobičajene procjene, "visoka" kad su grami ili proizvod jasno navedeni.
 
 AKTIVNOST
-- Računaj NETO potrošnju: (MET − 1) × tjelesna masa × sati. Bazalni metabolizam je već uračunat drugdje.
-- Koristi MET vrijednosti iz Compendium of Physical Activities. Trening snage s utezima tipično 3,5–6 MET ovisno o intenzitetu; borilačke vještine i sparing 7–10 MET.
+- Za SVAKU aktivnost obavezno navedi minute (ukupno aktivno vrijeme) i met (MET vrijednost). Nikad ne vraćaj aktivnost bez njih.
+- Runde i serije pretvori u minute: "4 runde po 5 minuta" = 20 minuta. Ako je spomenut i odmor između rundi, ne ubrajaj ga.
+- MET vrijednosti prema Compendium of Physical Activities, na primjer: trening snage s utezima 3,5–6; jiu-jitsu, judo, hrvanje, kickboxing, krav maga – sparing ili rolanje 10, drilovi i tehnika 5–6; trčanje lagano 8, umjereno 10; hodanje 3–4; bicikl umjereno 7–8.
+- kcal izračunaj kao NETO potrošnju: (MET − 1) × tjelesna masa × minute / 60. Bazalni metabolizam je već uračunat drugdje.
 - Ako trajanje nije navedeno, pretpostavi uobičajeno i to navedi u polju kolicina.
 
 OSTALO
@@ -592,7 +594,8 @@ const TOOL = {
       naziv:{type:'string', description:'Kratak naziv na hrvatskom, npr. "Kuhana jaja" ili "Trčanje"'},
       kolicina:{type:'string', description:'Čitljiva količina, npr. "3 kom (150 g)" ili "30 min, lagano"'},
       grami:{type:'number', description:'Ukupna masa u gramima (samo hrana)'},
-      minute:{type:'number', description:'Trajanje u minutama (samo aktivnost)'},
+      minute:{type:'number', description:'Ukupno aktivno trajanje u minutama (obavezno za aktivnost)'},
+      met:{type:'number', description:'MET vrijednost aktivnosti (obavezno za aktivnost)'},
       kcal:{type:'number', description:'Ukupne kcal stavke; za aktivnost neto potrošnja'},
       proteini:{type:'number'}, ugljikohidrati:{type:'number'}, masti:{type:'number'},
       obrok:{type:'string', enum:['doručak', 'ručak', 'večera', 'užina']},
@@ -654,6 +657,12 @@ function normItem(x) {
     grams:act ? null : (+x.grami ? Math.round(+x.grami) : null), minutes:act ? (+x.minute ? Math.round(+x.minute) : null) : null,
     kcal:Math.round(+x.kcal || 0), p:act ? 0 : r1(x.proteini), c:act ? 0 : r1(x.ugljikohidrati), f:act ? 0 : r1(x.masti),
     meal:act ? '' : (MEALS.includes(x.obrok) ? x.obrok : mealByTime()), conf:x.sigurnost || ''};
+  if (act) {
+    it.met = +x.met || 0;
+    const w = weightAt(cur) || weightAt(todayKey()) || 80;
+    if (it.met > 1 && it.minutes) it.kcal = Math.round((it.met - 1) * w * it.minutes / 60);
+    if (it.met) it.amount = [it.amount, `MET ${fmt(it.met, 1)}`].filter(Boolean).join(' · ');
+  }
   it.base = {q:act ? it.minutes : it.grams, kcal:it.kcal, p:it.p, c:it.c, f:it.f};
   return it;
 }
