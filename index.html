@@ -221,8 +221,8 @@ nav.tabs button.on{color:var(--accent);font-weight:650}
 const KEY = 'zalogaj-v1';
 const API = 'https://api.anthropic.com/v1/messages';
 const DEF = {apiKey:'', model:'claude-haiku-5-5', sex:'m', age:'', height:'', activity:1.375, goalRate:-0.25,
-             proteinPerKg:1.8, addExercise:true, autoProcess:true, useAdaptive:false};
-const NUMKEYS = ['age','height','activity','goalRate','proteinPerKg'];
+             proteinPerKg:1.8, addExercise:true, autoProcess:true, useAdaptive:false, stepsBaseline:3000};
+const NUMKEYS = ['age','height','activity','goalRate','proteinPerKg','stepsBaseline'];
 const MEALS = ['doručak','ručak','večera','užina'];
 const DAYN = ['ned','pon','uto','sri','čet','pet','sub'];
 
@@ -259,8 +259,13 @@ let tab = 'dan', cur = todayKey(), pending = null, busy = false, wRange = 30, ed
 
 /* ---------- calculations ---------- */
 const entriesOf = k => db.days[k]?.entries || [];
+function stepsKcal(steps, k) {
+  const w = weightAt(k) || weightAt(todayKey()) || 80;
+  return Math.round(Math.max(0, (+steps || 0) - (+S().stepsBaseline || 0)) * w * 0.0004);
+}
 function totals(k) {
-  const t = {kcal:0, p:0, c:0, f:0, act:0};
+  const st = +db.days[k]?.steps || 0;
+  const t = {kcal:0, p:0, c:0, f:0, act:st ? stepsKcal(st, k) : 0, steps:st};
   for (const e of entriesOf(k)) {
     if (e.kind === 'activity') t.act += +e.kcal || 0;
     else { t.kcal += +e.kcal || 0; t.p += +e.p || 0; t.c += +e.c || 0; t.f += +e.f || 0; }
@@ -367,7 +372,7 @@ function dayHtml() {
   </section>`;
 
   const es = entriesOf(k);
-  if (!es.length) {
+  if (!es.length && !t.steps) {
     h += `<div class="empty"><b>Još ništa za ovaj dan</b>Pritisni mikrofon i reci npr.<br>„za doručak tri jaja i kriška kruha“<br>ili „trčao sam 30 minuta lagano“.</div>`;
   } else {
     const groups = {};
@@ -375,16 +380,20 @@ function dayHtml() {
       const g = e.kind === 'activity' ? 'aktivnost' : (MEALS.includes(e.meal) ? e.meal : 'ostalo');
       (groups[g] ||= []).push(e);
     }
+    if (t.steps) groups.aktivnost ||= [];
     for (const g of [...MEALS, 'ostalo', 'aktivnost']) {
       if (!groups[g]) continue;
-      const sum = groups[g].reduce((a, e) => a + (+e.kcal || 0), 0), act = g === 'aktivnost';
+      const act = g === 'aktivnost';
+      const sum = groups[g].reduce((a, e) => a + (+e.kcal || 0), 0) + (act && t.steps ? stepsKcal(t.steps, k) : 0);
+      const stepRow = act && t.steps ? `<button class="row" data-act="steps"><span class="nm">Koraci<small>${fmt(t.steps)} ukupno · računa se iznad ${fmt(S().stepsBaseline)}</small></span>
+          <span class="kc plus">+${fmt(stepsKcal(t.steps, k))}</span></button>` : '';
       h += `<div class="card list"><div class="lh"><span>${g}</span><span class="num">${act ? '+' : ''}${fmt(sum)} kcal</span></div>
-        ${groups[g].map(e => `<button class="row" data-act="edit" data-id="${e.id}">
+        ${stepRow}${groups[g].map(e => `<button class="row" data-act="edit" data-id="${e.id}">
           <span class="nm">${esc(e.name)}<small>${esc(e.amount || (act && e.minutes ? e.minutes + ' min' : e.grams ? fmt(e.grams) + ' g' : ''))}</small></span>
           <span class="kc ${act ? 'plus' : ''}">${act ? '+' : ''}${fmt(e.kcal)}</span></button>`).join('')}</div>`;
     }
   }
-  h += `<button class="linkbtn" data-act="manual">+ Ručni unos</button>`;
+  h += `<div class="row2" style="justify-content:center"><button class="linkbtn" data-act="manual">+ Ručni unos</button><button class="linkbtn" data-act="steps">+ Koraci</button></div>`;
   return h;
 }
 
@@ -496,7 +505,9 @@ function settingsHtml() {
       <option value="1.375">Lagano aktivan (puno hodanja)</option>
       <option value="1.55">Aktivan (posao na nogama)</option>
       <option value="1.725">Vrlo aktivan (težak fizički rad)</option></select></label>
-    <p class="muted small" style="margin:-4px 0 0">Treninge bilježiš posebno, pa ih ovdje ne računaj.</p></div>
+    <p class="muted small" style="margin:-4px 0 12px">Treninge bilježiš posebno, pa ih ovdje ne računaj. Ako bilježiš i korake, odaberi „Sjedilački“ da se hodanje ne broji dvaput.</p>
+    <label class="f">Koraci već uračunati u bazu<input data-s="stepsBaseline" type="number" inputmode="numeric" step="500" min="0"></label>
+    <p class="muted small" style="margin:-4px 0 0">Kalorije se računaju samo za korake iznad ovog broja.</p></div>
 
   <div class="card"><h2>Cilj</h2>
     <label class="f">Tempo<select data-s="goalRate">
@@ -522,7 +533,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">Zalogaj 1.1</p>`;
+  <p class="muted small" style="text-align:center">Zalogaj 1.2</p>`;
 }
 function fillSettings() {
   const s = S();
@@ -576,13 +587,19 @@ AKTIVNOST
 - kcal izračunaj kao NETO potrošnju: (MET − 1) × tjelesna masa × minute / 60. Bazalni metabolizam je već uračunat drugdje.
 - Ako trajanje nije navedeno, pretpostavi uobičajeno i to navedi u polju kolicina.
 
+KORACI
+- Ako korisnik spomene broj koraka, NE zapisuj ga kao stavku, nego u polje koraci upiši UKUPNO stanje koraka za taj dan.
+- "Zasad sam na 2000 koraka", "evo na 6000", "danas 11 tisuća koraka" = to je novo ukupno stanje (2000, 6000, 11000), ne zbrajaj s prethodnim.
+- Samo ako izričito kaže dodatak ("još 2000 koraka", "napravio sam dodatnih 3000"), zbroji ga s trenutnim stanjem iz konteksta.
+
 OSTALO
-- Ako tekst ne sadrži ni hranu ni aktivnost, vrati praznu listu stavki i kratko objasni u polju napomena.
+- Ako tekst ne sadrži ni hranu, ni aktivnost, ni korake, vrati praznu listu stavki i kratko objasni u polju napomena.
 - Napomene piši kratko, na hrvatskom.
 
 KONTEKST
 - Datum unosa: ${dateKey}${dateKey === todayKey() ? `, trenutno vrijeme ${pad(now.getHours())}:${pad(now.getMinutes())}` : ' (naknadni unos za raniji dan)'}
 - Tjelesna masa korisnika: ${w} kg
+- Trenutno zabilježeni koraci za taj dan: ${+db.days[dateKey]?.steps || 0}
 - Spremljeni obroci: ${meals.length ? JSON.stringify(meals) : 'nema'}`;
 }
 const TOOL = {
@@ -601,6 +618,7 @@ const TOOL = {
       obrok:{type:'string', enum:['doručak', 'ručak', 'večera', 'užina']},
       sigurnost:{type:'string', enum:['visoka', 'srednja', 'niska']}
     }, required:['vrsta', 'naziv', 'kcal']}},
+    koraci:{type:'number', description:'Ukupno stanje koraka za dan, samo ako je korisnik spomenuo korake'},
     napomena:{type:'string'}
   }, required:['stavke']}
 };
@@ -667,7 +685,8 @@ function normItem(x) {
   return it;
 }
 function openConfirm(text, res) {
-  pending = {text, items:res.stavke.map(normItem), note:res.napomena || ''};
+  const st = Math.round(+res.koraci);
+  pending = {text, items:res.stavke.map(normItem), note:res.napomena || '', steps:st > 0 ? st : null, prevSteps:+db.days[cur]?.steps || 0};
   const firstFood = pending.items.find(i => i.kind === 'food');
   pending.meal = firstFood ? firstFood.meal : mealByTime();
   renderConfirm();
@@ -694,12 +713,17 @@ function renderConfirm() {
   let h = `<h3>Provjeri unos</h3>
     <div class="quote"><span>„${esc(p.text)}“</span><button data-act="retext">Ispravi tekst</button></div>`;
   if (p.note) h += `<p class="muted small" style="margin:-4px 0 10px">${esc(p.note)}</p>`;
-  if (!p.items.length) {
+  if (!p.items.length && p.steps == null) {
     h += `<div class="empty">Nisam prepoznao hranu ni aktivnost.</div>
       <div class="btns"><button class="btn ghost" data-act="close">Zatvori</button><button class="btn" data-act="retext">Ispravi tekst</button></div>`;
     openSheet(h); return;
   }
   if (hasFood) h += `<label class="f">Obrok<select id="cMeal">${MEALS.map(m => `<option ${m === p.meal ? 'selected' : ''}>${m}</option>`).join('')}</select></label>`;
+  if (p.steps != null) h += `<div class="ci act"><div class="ci-top"><b style="flex:1">Koraci danas</b>
+      <button class="x" data-act="cistdel" aria-label="Ukloni">×</button></div>
+    <div class="ci-sub">${p.prevSteps ? `dosad ${fmt(p.prevSteps)} → novo stanje (ne zbraja se)` : 'ukupno stanje za dan'}</div>
+    <div class="ci-fields"><label><input id="cSteps" type="number" inputmode="numeric" value="${p.steps}"><span>koraka</span></label>
+    <label style="justify-content:center"><span id="cStepsK" class="num">+${fmt(stepsKcal(p.steps, cur))} kcal</span></label></div></div>`;
   h += `<div id="ciList">${p.items.map(ciHtml).join('')}</div><div class="total" id="cTotal">${confirmTotals()}</div>`;
   if (hasFood) h += `<label class="chk"><input type="checkbox" id="cSave"> Spremi i kao obrok</label>
     <input class="inp" id="cSaveName" placeholder="Naziv, npr. Standardni doručak" style="display:none;margin-bottom:8px">`;
@@ -734,6 +758,7 @@ function saveConfirm() {
   const clean = it => ({id:uid(), kind:it.kind, name:it.name.trim() || (it.kind === 'food' ? 'Namirnica' : 'Aktivnost'), amount:it.amount,
     grams:it.grams, minutes:it.minutes, kcal:it.kcal, p:it.p, c:it.c, f:it.f, meal:it.kind === 'food' ? meal : '', ts:Date.now()});
   for (const it of p.items) day.entries.push(clean(it));
+  if (p.steps != null && p.steps > 0) day.steps = Math.round(p.steps);
   if ($('#cSave')?.checked) {
     const name = ($('#cSaveName').value || '').trim() || p.text.slice(0, 40);
     db.meals.push({id:uid(), name, items:p.items.filter(i => i.kind === 'food').map(clean).map(({id, ts, meal, ...r}) => ({...r, meal}))});
@@ -847,6 +872,14 @@ document.addEventListener('click', e => {
     case 'close': closeSheet(); break;
     case 'retext': { const t = pending?.text || ''; closeSheet(); inp.value = t; autosize(); setTimeout(() => inp.focus(), 300); break; }
     case 'cidel': pending.items.splice(+el.dataset.i, 1); renderConfirm(); break;
+    case 'cistdel': pending.steps = null; renderConfirm(); break;
+    case 'steps': openSheet(`<h3>Koraci</h3>
+      <label class="f">Ukupno koraka – ${labelDate(cur)}<input id="stIn" type="number" inputmode="numeric" value="${db.days[cur]?.steps || ''}"></label>
+      <p class="muted small" style="margin:-4px 0 0">Upisuje se stanje, ne dodatak. Kalorije se računaju za korake iznad ${fmt(S().stepsBaseline)}.</p>
+      <div class="btns"><button class="btn danger" data-act="stdel">Obriši</button><button class="btn" data-act="stsave">Spremi</button></div>`); break;
+    case 'stsave': { const v = Math.round(+$('#stIn').value); if (!(v >= 0)) { toast('Upiši broj koraka'); break; }
+      (db.days[cur] ||= {entries:[]}).steps = v; save(); closeSheet(); render(); break; }
+    case 'stdel': if (db.days[cur]) delete db.days[cur].steps; save(); closeSheet(); render(); break;
     case 'confirm': saveConfirm(); break;
     case 'manual': editKind = 'food'; openSheet(entryForm(null)); break;
     case 'kind': editKind = el.dataset.k; openSheet(entryForm(null)); break;
@@ -880,6 +913,10 @@ document.addEventListener('click', e => {
   }
 });
 document.addEventListener('input', e => {
+  if (e.target.id === 'cSteps' && pending) {
+    const v = Math.round(+e.target.value); pending.steps = v > 0 ? v : null;
+    $('#cStepsK').textContent = '+' + fmt(stepsKcal(v, cur)) + ' kcal'; return;
+  }
   if (e.target.closest('#sheet .ci')) onConfirmInput(e.target);
   if (e.target.id === 'cSaveName') return;
 });
