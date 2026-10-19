@@ -203,8 +203,8 @@ nav.tabs button.on{color:var(--accent-ink);font-weight:650}
 #toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translate(-50%,20px);z-index:30;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:14px;font-size:14px;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:all .25s;text-align:center}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 </style>
-<link rel="stylesheet" href="skin.css" id="skinLink">
-<script>try{var sk=JSON.parse(localStorage.getItem('zalogaj-v1')||'{}').settings;sk=sk&&sk.skin;if(sk&&/^[a-z0-9-]+$/.test(sk))document.getElementById('skinLink').href='skinovi/'+sk+'.css';}catch(e){}</script>
+<link rel="stylesheet" href="skinovi/osnovni.css" id="skinLink">
+<script>try{var sk=JSON.parse(localStorage.getItem('zalogaj-v1')||'{}').settings;sk=sk&&sk.skin;if(sk&&sk!=='osnovni'&&/^[a-z0-9-]+$/.test(sk))document.getElementById('skinLink').href='skinovi/'+sk+'.css';}catch(e){}</script>
 </head>
 <body>
 <div class="app" id="app">
@@ -240,7 +240,7 @@ nav.tabs button.on{color:var(--accent-ink);font-weight:650}
 'use strict';
 const KEY = 'zalogaj-v1';
 const API = 'https://api.anthropic.com/v1/messages';
-const DEF = {skin:'', apiKey:'', model:'claude-haiku-5-5', sex:'m', age:'', height:'', activity:1.375, goalRate:-0.25,
+const DEF = {skin:'osnovni', apiKey:'', model:'claude-haiku-5-5', sex:'m', age:'', height:'', activity:1.375, goalRate:-0.25,
              proteinPerKg:1.8, addExercise:true, autoProcess:true, useAdaptive:false, stepsBaseline:3000};
 const NUMKEYS = ['age','height','activity','goalRate','proteinPerKg','stepsBaseline'];
 const MEALS = ['doručak','ručak','večera','užina'];
@@ -555,20 +555,19 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG tracker 1.8</p>`;
+  <p class="muted small" style="text-align:center">SDG tracker 1.9</p>`;
 }
-const SKINS_FALLBACK = [{id:'', naziv:'Zadani', opis:'Skin koji je trenutno objavljen', boje:[]}];
 let skinsCache = null;
 async function loadSkins() {
   if (!skinsCache) {
     try { const r = await fetch('skinovi/skinovi.json', {cache:'no-cache'}); skinsCache = await r.json(); }
-    catch (e) { skinsCache = []; }
+    catch (e) { skinsCache = [{id:'osnovni', naziv:'Osnovni', opis:'', boje:[]}]; }
   }
-  return [{id:'', naziv:'Zadani', opis:'Prati sezonski skin koji objaviš', boje:[]}, ...skinsCache];
+  return skinsCache;
 }
 async function renderSkins() {
   const el = $('#skinList'); if (!el) return;
-  const list = await loadSkins(), curSkin = S().skin || '';
+  const list = await loadSkins(), curSkin = S().skin || 'osnovni';
   el.innerHTML = list.map(k => `<button class="skin ${k.id === curSkin ? 'on' : ''}" data-act="skin" data-id="${esc(k.id)}">
     <span class="dots">${(k.boje.length ? k.boje : ['var(--bg)', 'var(--accent)', 'var(--text)']).map(c => `<i style="background:${esc(c)}"></i>`).join('')}</span>
     <span><b>${esc(k.naziv)}</b><small>${esc(k.opis || '')}</small></span></button>`).join('');
@@ -576,7 +575,7 @@ async function renderSkins() {
 function applySkin(id) {
   const link = $('#skinLink');
   link.onload = () => syncThemeColor();
-  link.href = id ? `skinovi/${id}.css` : 'skin.css';
+  link.href = `skinovi/${id || 'osnovni'}.css`;
 }
 function fillSettings() {
   renderSkins();
@@ -1012,7 +1011,7 @@ document.addEventListener('click', e => {
     }
     case 'showkey': { const k = $('#keyIn'); k.type = k.type === 'password' ? 'text' : 'password'; el.textContent = k.type === 'password' ? 'Prikaži' : 'Sakrij'; break; }
     case 'testkey': testKey(); break;
-    case 'skin': { const v = el.dataset.id || ''; if (v && !/^[a-z0-9-]+$/.test(v)) break;
+    case 'skin': { const v = el.dataset.id || 'osnovni'; if (!/^[a-z0-9-]+$/.test(v)) break;
       db.settings.skin = v; save(); applySkin(v); renderSkins(); break; }
     case 'export': exportData(); break;
     case 'import': $('#impFile').click(); break;

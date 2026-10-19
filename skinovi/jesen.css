@@ -1,5 +1,5 @@
-/* SDG tracker – skin: JESEN (lišće koje opada + zagasito zelena)
-   Za aktivaciju: sadržaj ove datoteke kopiraj u skin.css. */
+/* SDG tracker – skin: JESENSKI (lišće koje opada + zagasito zelena)
+   Bira se u Postavkama → Izgled. */
 :root{
   --bg:#f3e9d8;--surface:#fffaf1;--surface2:#efe2cb;--text:#2a2118;--muted:#7b6a54;--line:#e3d2b5;
   --accent:#d98a2b;--accent-ink:#9a4516;--accent-soft:#f7e2c6;--on-accent:#1d1208;

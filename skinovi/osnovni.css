@@ -1,5 +1,5 @@
-/* SDG tracker – skin: OSNOVNI (crna, bijela i žuta iz loga)
-   Za aktivaciju: sadržaj ove datoteke kopiraj u skin.css. */
+/* SDG tracker – skin: OSNOVNI (crna, bijela i žuta iz loga) – zadani
+   Bira se u Postavkama → Izgled. */
 :root{
   --bg:#f5f2ec;--surface:#fff;--surface2:#ece8e0;--text:#1c1a17;--muted:#716b61;--line:#e3ded4;
   --accent:#e7c640;--accent-ink:#7a6200;--accent-soft:#faf1cc;--on-accent:#111;
