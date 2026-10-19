@@ -195,6 +195,7 @@ nav.tabs button.on{color:var(--accent-ink);font-weight:650}
 #toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translate(-50%,20px);z-index:30;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:14px;font-size:14px;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:all .25s;text-align:center}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 </style>
+<link rel="stylesheet" href="skin.css">
 </head>
 <body>
 <div class="app" id="app">
@@ -543,7 +544,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG tracker 1.6</p>`;
+  <p class="muted small" style="text-align:center">SDG tracker 1.7</p>`;
 }
 function fillSettings() {
   const s = S();
@@ -1021,6 +1022,12 @@ inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e
 document.addEventListener('visibilitychange', () => { if (!document.hidden && tab === 'dan') render(); });
 
 render(); autosize();
+function syncThemeColor() {
+  const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+  if (bg) document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.content = bg);
+}
+window.addEventListener('load', syncThemeColor);
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', syncThemeColor);
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
