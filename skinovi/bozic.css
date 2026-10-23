@@ -2,7 +2,7 @@
    Zelena pozadina, crveni i zlatni naglasci, lampice, imela, kuglice i pahulje.
    Bira se u Postavkama → Izgled. */
 :root{
-  --bg:#14512f;--surface:#fffaf0;--surface2:#f5e9cc;--text:#2a1d12;--muted:#7a6448;--line:#ead9b0;
+  --bg:#14512f;--surface:#f3e8d2;--surface2:#e8d9b6;--text:#2a1d12;--muted:#735d40;--line:#dcc79b;
   --accent:#c8202d;--accent-ink:#a8141f;--accent-soft:#fbe0dc;--on-accent:#fff5d6;
   --good:#1f7a43;--warn:#b07a0c;--bad:#e07a10;
   --pc:#1f7a43;--cc:#d4a017;--fc:#c8202d;
@@ -93,3 +93,7 @@ nav.tabs button.on{color:var(--gold-hi)!important}
 
 /* izgled kartica u postavkama */
 .skin.on{border-color:var(--accent);background:var(--accent-soft)}
+
+/* odabir raspona na grafu težine */
+.chips button{border-color:var(--gold);color:var(--muted)}
+.chips button.on{background:var(--accent);color:var(--on-accent);border-color:var(--gold-hi)}
