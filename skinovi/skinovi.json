@@ -1,4 +1,5 @@
 [
   {"id": "osnovni", "naziv": "Osnovni", "opis": "Crna, bijela i žuta iz loga", "boje": ["#f5f2ec", "#e7c640", "#1c1a17"]},
-  {"id": "jesen", "naziv": "Jesenski", "opis": "Lišće koje opada, zagasito zelena", "boje": ["#f3e9d8", "#d98a2b", "#5a7533"]}
+  {"id": "jesen", "naziv": "Jesenski", "opis": "Lišće koje opada, zagasito zelena", "boje": ["#f3e9d8", "#d98a2b", "#5a7533"]},
+  {"id": "bozic", "naziv": "Božićni", "opis": "Zelena, crvena i zlato, lampice i imela", "boje": ["#14512f", "#c8202d", "#d4a017"]}
 ]

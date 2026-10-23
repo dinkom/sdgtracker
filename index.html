@@ -232,7 +232,7 @@ body.locked{overflow:hidden}
 .ovchart{width:100%;height:auto;display:block;touch-action:manipulation}
 .ovchart text{fill:var(--muted);font-size:10px;font-family:inherit}
 .ovchart .grid{stroke:var(--line);stroke-width:1}
-.ovchart .bar{fill:var(--accent)}
+.ovchart .bar{fill:var(--bar,var(--accent))}
 .ovchart .bar.over{fill:var(--bad)}
 .ovchart .bar.part{opacity:.45}
 .ovchart .tgt{stroke:var(--text);stroke-width:2;stroke-linecap:round}
@@ -545,7 +545,7 @@ function overviewHtml() {
     <div class="tile"><span>Zabilježeni dani</span><b>${o.done.length}</b><small>od ${pastN}</small></div></div>`;
   h += `<div class="card"><h2>Unos po danima</h2>${ovChart(o)}
     <div class="ovtip" id="ovTip">${ovTipHtml(o)}</div>
-    <div class="legend"><span><i style="background:var(--accent)"></i>unos</span><span><i style="background:var(--bad)"></i>preko cilja</span><span><i class="ln"></i>cilj dana</span></div></div>`;
+    <div class="legend"><span><i style="background:var(--bar,var(--accent))"></i>unos</span><span><i style="background:var(--bad)"></i>preko cilja</span><span><i class="ln"></i>cilj dana</span></div></div>`;
   if (o.avgIn) {
     const pk = o.avgP * 4, ck = o.avgC * 4, fk = o.avgF * 9, sum = pk + ck + fk || 1, pc = v => Math.round(v / sum * 100);
     h += `<div class="card"><h2>Makronutrijenti (prosjek)</h2>
@@ -734,7 +734,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG tracker 1.13</p>`;
+  <p class="muted small" style="text-align:center">SDG tracker 1.15</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
