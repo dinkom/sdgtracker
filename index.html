@@ -224,6 +224,32 @@ body.locked{overflow:hidden}
 .hero .big{font-size:38px;font-weight:750;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}
 .hero .lbl{color:var(--muted);font-size:14px;margin-top:4px}
 .hero .sub{margin-top:10px;font-size:14px}
+.hero h2{text-align:center}
+.hero .big .unit{font-size:16px;font-weight:600;color:var(--muted);letter-spacing:0}
+.hero .status{display:inline-block;margin-top:12px;padding:6px 12px;border-radius:99px;font-size:13px;background:var(--surface2)}
+.hero .status b{font-weight:700}
+.hero .status.ok b{color:var(--good)}
+.hero .status.warn b{color:var(--warn)}
+.cmp{margin-top:14px;display:grid;gap:8px;text-align:left;font-size:14px}
+.cmp>div{display:grid;grid-template-columns:110px 1fr auto;gap:10px;align-items:center}
+.cmp>div.w{grid-template-columns:110px 1fr}
+.cmp>div.w b{text-align:right}
+.cmp span small{color:var(--muted);font-size:12px}
+.cmp b{font-variant-numeric:tabular-nums;white-space:nowrap}
+.cmpbar{position:relative;height:10px;border-radius:5px;background:var(--surface2)}
+.cmpbar::after{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;width:2px;margin-left:-1px;border-radius:1px;background:var(--muted);opacity:.6}
+.cmpbar i{position:absolute;top:0;height:100%;border-radius:5px;background:var(--muted)}
+.cmp>div.axis{margin-top:-6px}
+.cmp>div.axis span:nth-child(2){display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.cmp>div.axis em{font-style:normal}
+.cmp>div:nth-child(2) .cmpbar i{background:var(--accent)}
+.hero .hint{font-size:12px;color:var(--muted);margin:10px 0 0;text-align:left}
+.why{margin-top:12px;text-align:left;font-size:13px;border-top:1px solid var(--line);padding-top:10px}
+.why summary{cursor:pointer;color:var(--accent-ink);font-weight:650;list-style:none}
+.why summary::-webkit-details-marker{display:none}
+.why summary::before{content:"ⓘ ";}
+.why p{margin:8px 0 0;color:var(--muted);line-height:1.45}
+.why p b{color:var(--text)}
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .tile{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px 14px;box-shadow:var(--shadow)}
 .tile span{display:block;font-size:12px;color:var(--muted)}
@@ -496,20 +522,25 @@ function ovData() {
   for (let k = a; k <= b; k = addDays(k, 1)) {
     const tt = totals(k), logged = entriesOf(k).some(e => e.kind !== 'activity');
     const tg = target(k), budget = tg == null ? null : tg + (S().addExercise ? tt.act : 0);
-    days.push({k, ...tt, logged, budget, future:k > t, today:k === t});
+    const bt = baseTdee(k), maint = bt == null ? null : bt + tt.act;
+    days.push({k, ...tt, logged, budget, maint, future:k > t, today:k === t});
   }
   const done = days.filter(d => d.logged && !d.today && !d.future);
   const avg = f => done.length ? done.reduce((s, d) => s + f(d), 0) / done.length : null;
   const withB = done.filter(d => d.budget != null);
   const balance = withB.length ? withB.reduce((s, d) => s + (d.kcal - d.budget), 0) : null;
+  const withM = done.filter(d => d.maint != null);
+  const energy = withM.length ? withM.reduce((s, d) => s + (d.kcal - d.maint), 0) : null;   // u odnosu na održavanje
+  const plan = withM.length ? S().goalRate * 7700 / 7 * withM.length : null;                   // što je plan predviđao
   const allPast = days.filter(d => !d.future);
   const stepDays = allPast.filter(d => d.steps);
   const ser = weightSeries(), end = b > t ? t : b;
   const inPeriod = ser.filter(p => p.k >= a && p.k <= end);
   const wStart = trendAt(ser, addDays(a, -1)) ?? (inPeriod[0] ? inPeriod[0].t : null);
   const wDelta = inPeriod.length && wStart != null ? trendAt(ser, end) - wStart : null;
+  const weighIns = inPeriod.length;
   const w = weightAt(end);
-  return {a, b, days, done, balance, nB:withB.length,
+  return {a, b, days, done, balance, nB:withB.length, energy, plan, nM:withM.length, weighIns,
     avgIn:avg(d => d.kcal), avgBudget:withB.length ? withB.reduce((s, d) => s + d.budget, 0) / withB.length : null,
     avgP:avg(d => d.p), avgC:avg(d => d.c), avgF:avg(d => d.f),
     avgAct:allPast.length ? allPast.reduce((s, d) => s + d.act, 0) / allPast.length : null,
@@ -526,12 +557,39 @@ function overviewHtml() {
   if (!o.days.some(d => d.logged)) {
     return h + `<div class="card empty"><b>Nema unosa u ovom razdoblju</b>Pregled se puni kako bilježiš obroke.</div>`;
   }
-  if (o.balance != null) {
-    const under = o.balance <= 0, kg = o.balance / 7700;
-    h += `<div class="card hero"><div class="big">${under ? '−' : '+'}${fmt(Math.abs(o.balance))}</div>
-      <div class="lbl">kcal ${under ? 'ispod' : 'iznad'} cilja · ${o.nB} ${o.nB === 1 ? 'dan' : 'dana'}</div>
-      <div class="sub">≈ ${sgn(kg, 2)} kg prema unosu${o.wDelta != null ? ` · vaga (trend) <b class="num">${sgn(o.wDelta, 1)} kg</b>` : ''}</div>
-      ${isCur ? `<div class="lbl small" style="margin-top:6px">Današnji dan se ne računa dok traje.</div>` : ''}</div>`;
+  if (o.energy != null) {
+    const gr = +S().goalRate, nD = o.nM, avgDiff = o.balance / Math.max(1, o.nB);
+    const loss = o.energy < 0, kg = o.energy / 7700;
+    // status: koliko se držiš plana (prosječno odstupanje od dnevnog cilja)
+    let st;
+    if (Math.abs(avgDiff) <= 100) st = {cls:'ok', ic:'✓', t:'U planu'};
+    else if (avgDiff > 0) st = {cls:'warn', ic:'▲', t:'Iznad plana'};
+    else if (gr < 0 && avgDiff < -500) st = {cls:'warn', ic:'▼', t:'Puno ispod plana'};
+    else st = {cls:gr < 0 ? 'ok' : 'warn', ic:'▼', t:'Ispod plana'};
+    const diffTxt = Math.abs(avgDiff) <= 100 && Math.abs(avgDiff) < 15 ? 'točno prema dnevnom cilju'
+      : `prosječno ${fmt(Math.abs(avgDiff))} kcal/dan ${avgDiff > 0 ? 'iznad' : 'ispod'} cilja`;
+    const planKg = o.plan / 7700, mx = Math.max(Math.abs(o.plan), Math.abs(o.energy), 1);
+    const bar = v => { const w = Math.min(50, Math.abs(v) / mx * 50); return `<span class="cmpbar"><i style="${v < 0 ? 'right' : 'left'}:50%;width:${w}%"></i></span>`; };
+    const planLbl = gr === 0 ? 'održavanje' : `${sgn(gr, 2).replace('+', '+')} kg/tj.`;
+    const shortW = ovMode === 'tjedan' || o.weighIns < 8;
+    h += `<div class="card hero">
+      <h2 style="margin-bottom:6px">Bilanca energije</h2>
+      <div class="big">${Math.abs(o.energy) < 50 ? '≈ 0' : (loss ? '−' : '+') + fmt(Math.abs(o.energy))} <span class="unit">kcal</span></div>
+      <div class="lbl">${Math.abs(o.energy) < 50 ? 'unos jednak potrošnji' : loss ? 'ukupni deficit' : 'ukupni višak'} · ${nD} ${nD === 1 ? 'dan' : 'dana'} · ≈ <b class="num">${sgn(kg, 2)} kg</b></div>
+      <div class="status ${st.cls}"><b>${st.ic} ${st.t}</b> · ${diffTxt}</div>
+      <div class="cmp">
+        <div><span>Plan <small>(${planLbl})</small></span>${bar(o.plan)}<b>${o.plan === 0 ? '0' : sgn(o.plan, 0)}</b></div>
+        <div><span>Stvarno</span>${bar(o.energy)}<b>${sgn(o.energy, 0)}</b></div>
+        <div class="axis"><span></span><span><em>← deficit</em><em>višak →</em></span><span></span></div>
+        <div class="w"><span>Vaga (trend)</span><b>${o.wDelta == null ? 'nema vaganja' : sgn(o.wDelta, 1) + ' kg'}</b></div>
+      </div>
+      ${shortW && o.wDelta != null ? `<p class="hint">Težina dnevno oscilira ±0,5–1 kg zbog vode i hrane, pa vaga pravi smjer pokaže tek nakon 2–3 tjedna.</p>` : ''}
+      <details class="why"><summary>Što ovo znači?</summary>
+        <p><b>Bilanca</b> je razlika između onoga što si pojeo i onoga što si potrošio (bazalni metabolizam, svakodnevno kretanje i zabilježene aktivnosti). Minus znači deficit – tijelo troši zalihe; otprilike 7.700 kcal ≈ 1 kg.</p>
+        <p><b>Plan</b> je deficit koji tvoj odabrani tempo predviđa za isti broj dana. <b>Status</b> pokazuje koliko se držiš dnevnog cilja: do ±100 kcal dnevno je „u planu“.</p>
+        <p>Brojke su procjene – najviše vrijede kad se gledaju zajedno s trendom vage kroz nekoliko tjedana.</p>
+      </details>
+      ${isCur ? `<p class="hint" style="margin-top:6px">Današnji dan se ne računa dok traje.</p>` : ''}</div>`;
   } else {
     h += `<div class="card hero"><div class="lbl">Bilanca se pojavi kad završi prvi dan s unosom${S().age && S().height ? '' : ' i kad upišeš profil'}.</div></div>`;
   }
@@ -738,7 +796,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG tracker 1.17</p>`;
+  <p class="muted small" style="text-align:center">SDG tracker 1.18</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {

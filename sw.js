@@ -1,4 +1,4 @@
-const CACHE = 'sdg-tracker-v20';
+const CACHE = 'sdg-tracker-v21';
 const ASSETS = ['./', './index.html', './skinovi/skinovi.json', './skinovi/osnovni.css', './skinovi/jesen.css', './skinovi/bozic.css', './sdg-tracker.webmanifest', './sdg-icon-192.png', './sdg-icon-512.png', './sdg-icon-maskable-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
