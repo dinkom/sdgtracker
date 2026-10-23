@@ -298,7 +298,7 @@ body.locked{overflow:hidden}
 'use strict';
 const KEY = 'zalogaj-v1';
 const API = 'https://api.anthropic.com/v1/messages';
-const DEF = {skin:'osnovni', apiKey:'', model:'claude-haiku-5-5', sex:'m', age:'', height:'', activity:1.375, goalRate:-0.25,
+const DEF = {skin:'osnovni', apiKey:'', model:'claude-haiku-5-5', photoModel:'claude-sonnet-5-5', sex:'m', age:'', height:'', activity:1.375, goalRate:-0.25,
              proteinPerKg:1.8, addExercise:true, autoProcess:true, useAdaptive:false, stepsBaseline:3000};
 const NUMKEYS = ['age','height','activity','goalRate','proteinPerKg','stepsBaseline'];
 const MEALS = ['doručak','ručak','večera','užina'];
@@ -722,9 +722,13 @@ function settingsHtml() {
   <div class="card"><h2>Claude API</h2>
     <div class="keyrow"><label class="f">API ključ<input data-s="apiKey" id="keyIn" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label>
     <button class="btn ghost sm" data-act="showkey" style="min-height:46px">Prikaži</button></div>
-    <label class="f" style="margin-top:12px">Model<select data-s="model">
+    <label class="f" style="margin-top:12px">Model za tekst i glas<select data-s="model">
       <option value="claude-haiku-5-5">Haiku 5.5 – brz i najjeftiniji</option>
-      <option value="claude-sonnet-5-5">Sonnet 5.5 – precizniji, skuplji</option></select></label>
+      <option value="claude-sonnet-5-5">Sonnet 5.5 – precizniji, ~20× skuplji</option></select></label>
+    <label class="f">Model za fotografije<select data-s="photoModel">
+      <option value="claude-haiku-5-5">Haiku 5.5 – brz i najjeftiniji</option>
+      <option value="claude-sonnet-5-5">Sonnet 5.5 – bolje prepoznaje hranu sa slike</option></select></label>
+    <p class="muted small" style="margin:-4px 0 12px">Ispravci stavki koriste model za tekst.</p>
     <label class="chk"><input type="checkbox" data-s="autoProcess"> Obradi automatski nakon diktiranja</label>
     <button class="btn ghost sm" data-act="testkey" id="testBtn">Testiraj ključ</button>
     <p class="muted small" style="margin:10px 0 0">Ključ se čuva samo na ovom uređaju i šalje se isključivo Anthropicu.</p></div>
@@ -734,7 +738,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG tracker 1.15</p>`;
+  <p class="muted small" style="text-align:center">SDG tracker 1.16</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -871,13 +875,14 @@ const TOOL = {
     napomena:{type:'string'}
   }, required:['stavke']}
 };
-async function callClaude(body) {
+const MODEL_NAMES = {'claude-haiku-5-5':'Haiku 5.5', 'claude-sonnet-5-5':'Sonnet 5.5'};
+async function callClaude(body, model) {
   const s = S(), ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 45000);
   let r;
   try {
     r = await fetch(API, {method:'POST', signal:ctl.signal, headers:{
       'content-type':'application/json', 'x-api-key':s.apiKey.trim(), 'anthropic-version':'2023-06-01',
-      'anthropic-dangerous-direct-browser-access':'true'}, body:JSON.stringify({model:s.model, ...body})});
+      'anthropic-dangerous-direct-browser-access':'true'}, body:JSON.stringify({model:model || s.model, ...body})});
   } catch (e) {
     throw new Error(e.name === 'AbortError' ? 'Zahtjev je predugo trajao. Pokušaj ponovno.' : 'Nema veze s poslužiteljem. Provjeri internet.');
   } finally { clearTimeout(timer); }
@@ -896,11 +901,12 @@ async function askClaude(text, ph) {
   const w = weightAt(cur) || weightAt(todayKey()) || 80;
   const content = ph ? [{type:'image', source:{type:'base64', media_type:'image/jpeg', data:ph.data}},
                         {type:'text', text:text || 'Procijeni obrok na fotografiji.'}] : text;
+  const model = ph ? (S().photoModel || S().model) : S().model;
   const j = await callClaude({max_tokens:2000, system:systemPrompt(w, cur), tools:[TOOL],
-    tool_choice:{type:'tool', name:'zapisi_unos'}, messages:[{role:'user', content}]});
+    tool_choice:{type:'tool', name:'zapisi_unos'}, messages:[{role:'user', content}]}, model);
   const tu = (j.content || []).find(b => b.type === 'tool_use');
   if (!tu || !Array.isArray(tu.input?.stavke)) throw new Error('Odgovor nije u očekivanom obliku. Pokušaj ponovno.');
-  return tu.input;
+  return {...tu.input, _model:j.model || model};
 }
 
 /* ---------- input & processing ---------- */
@@ -956,7 +962,7 @@ function normItem(x) {
 }
 function openConfirm(text, res, ph) {
   const st = Math.round(+res.koraci);
-  pending = {text, photo:ph || null, items:res.stavke.map(normItem), note:res.napomena || '', steps:st > 0 ? st : null, prevSteps:+db.days[cur]?.steps || 0};
+  pending = {text, photo:ph || null, model:res._model, items:res.stavke.map(normItem), note:res.napomena || '', steps:st > 0 ? st : null, prevSteps:+db.days[cur]?.steps || 0};
   const firstFood = pending.items.find(i => i.kind === 'food');
   pending.meal = firstFood ? firstFood.meal : mealByTime();
   renderConfirm();
@@ -983,6 +989,7 @@ function renderConfirm() {
   let h = `<h3>Provjeri unos</h3>
     <div class="quote">${p.photo ? `<img class="qimg" src="${p.photo.url}" alt="">` : ''}<span style="flex:1">${p.text ? `„${esc(p.text)}“` : 'Procjena s fotografije'}</span><button data-act="retext">Ispravi${p.photo ? '' : ' tekst'}</button></div>`;
   if (p.note) h += `<p class="muted small" style="margin:-4px 0 10px">${esc(p.note)}</p>`;
+  if (p.model) h += `<p class="muted small" style="margin:-6px 0 10px;text-align:right">Obradio: ${esc(MODEL_NAMES[p.model] || p.model)}</p>`;
   if (!p.items.length && p.steps == null) {
     h += `<div class="empty">Nisam prepoznao hranu ni aktivnost.</div>
       <div class="btns"><button class="btn ghost" data-act="close">Zatvori</button><button class="btn" data-act="retext">Ispravi tekst</button></div>`;
