@@ -738,7 +738,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG tracker 1.16</p>`;
+  <p class="muted small" style="text-align:center">SDG tracker 1.17</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -876,37 +876,68 @@ const TOOL = {
   }, required:['stavke']}
 };
 const MODEL_NAMES = {'claude-haiku-5-5':'Haiku 5.5', 'claude-sonnet-5-5':'Sonnet 5.5'};
-async function callClaude(body, model) {
-  const s = S(), ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 45000);
+// Neki modeli (npr. Sonnet 5.5) ne podržavaju prisilni odabir alata – za njih koristimo tool_choice "auto".
+const AUTO_TOOL_KEY = 'sdg-auto-tool-models';
+const autoToolModels = (() => { try { return new Set(JSON.parse(localStorage.getItem(AUTO_TOOL_KEY) || '[]')); } catch (e) { return new Set(); } })();
+function rememberAutoTool(m) { autoToolModels.add(m); try { localStorage.setItem(AUTO_TOOL_KEY, JSON.stringify([...autoToolModels])); } catch (e) {} }
+function softenToolChoice(body) {
+  const name = body.tool_choice?.name;
+  const note = `\n\nVAŽNO: Odgovori isključivo pozivom alata ${name}, bez ikakvog drugog teksta.`;
+  return {...body, tool_choice:{type:'auto'}, system:(body.system || '') + note};
+}
+async function callClaudeOnce(body, model) {
+  const s = S(), ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 60000);
   let r;
   try {
     r = await fetch(API, {method:'POST', signal:ctl.signal, headers:{
       'content-type':'application/json', 'x-api-key':s.apiKey.trim(), 'anthropic-version':'2023-06-01',
-      'anthropic-dangerous-direct-browser-access':'true'}, body:JSON.stringify({model:model || s.model, ...body})});
+      'anthropic-dangerous-direct-browser-access':'true'}, body:JSON.stringify({model, ...body})});
   } catch (e) {
     throw new Error(e.name === 'AbortError' ? 'Zahtjev je predugo trajao. Pokušaj ponovno.' : 'Nema veze s poslužiteljem. Provjeri internet.');
   } finally { clearTimeout(timer); }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) {
     const m = j?.error?.message || r.statusText;
-    if (r.status === 401) throw new Error('API ključ nije ispravan.');
-    if (r.status === 429) throw new Error('Previše zahtjeva – pokušaj za minutu.');
-    if (r.status === 529 || r.status === 503) throw new Error('Claude je trenutno preopterećen. Pokušaj ponovno.');
-    if (/credit/i.test(m)) throw new Error('Na API računu nema kredita. Nadoplati u Claude Consoleu.');
-    throw new Error(`Greška ${r.status}: ${m}`);
+    const err = new Error(`Greška ${r.status}: ${m}`);
+    if (r.status === 400 && /tool_choice/i.test(m)) err.toolChoice = true;
+    else if (r.status === 401) err.message = 'API ključ nije ispravan.';
+    else if (r.status === 404 || /model/i.test(m) && r.status === 400) err.message = `Model ${model} nije dostupan na tvom računu (${m}).`;
+    else if (r.status === 429) err.message = 'Previše zahtjeva – pokušaj za minutu.';
+    else if (r.status === 529 || r.status === 503) err.message = 'Claude je trenutno preopterećen. Pokušaj ponovno.';
+    else if (/credit/i.test(m)) err.message = 'Na API računu nema kredita. Nadoplati u Claude Consoleu.';
+    throw err;
   }
   return j;
+}
+async function callClaude(body, model) {
+  model = model || S().model;
+  const forced = body.tool_choice?.type === 'tool';
+  if (forced && autoToolModels.has(model)) return callClaudeOnce(softenToolChoice(body), model);
+  try { return await callClaudeOnce(body, model); }
+  catch (e) {
+    if (forced && e.toolChoice) { rememberAutoTool(model); return callClaudeOnce(softenToolChoice(body), model); }
+    throw e;
+  }
+}
+// izvuci rezultat alata; ako je model odgovorio tekstom s JSON-om, pokušaj ga pročitati
+function toolResult(j, name) {
+  const tu = (j.content || []).find(b => b.type === 'tool_use' && (!name || b.name === name));
+  if (tu) return tu.input;
+  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+  const m = txt.match(/\{[\s\S]*\}/);
+  if (m) { try { return JSON.parse(m[0]); } catch (e) {} }
+  return null;
 }
 async function askClaude(text, ph) {
   const w = weightAt(cur) || weightAt(todayKey()) || 80;
   const content = ph ? [{type:'image', source:{type:'base64', media_type:'image/jpeg', data:ph.data}},
                         {type:'text', text:text || 'Procijeni obrok na fotografiji.'}] : text;
   const model = ph ? (S().photoModel || S().model) : S().model;
-  const j = await callClaude({max_tokens:2000, system:systemPrompt(w, cur), tools:[TOOL],
+  const j = await callClaude({max_tokens:4000, system:systemPrompt(w, cur), tools:[TOOL],
     tool_choice:{type:'tool', name:'zapisi_unos'}, messages:[{role:'user', content}]}, model);
-  const tu = (j.content || []).find(b => b.type === 'tool_use');
-  if (!tu || !Array.isArray(tu.input?.stavke)) throw new Error('Odgovor nije u očekivanom obliku. Pokušaj ponovno.');
-  return {...tu.input, _model:j.model || model};
+  const out = toolResult(j, 'zapisi_unos');
+  if (!out || !Array.isArray(out.stavke)) throw new Error('Odgovor nije u očekivanom obliku. Pokušaj ponovno.');
+  return {...out, _model:j.model || model};
 }
 
 /* ---------- input & processing ---------- */
@@ -1118,7 +1149,7 @@ async function aiEdit(kind) {
 - U polje objasnjenje kratko (do 8 riječi) napiši što si promijenio.`,
       messages:[{role:'user', content:`Trenutna stavka: ${JSON.stringify(formEntry(kind))}
 Izmjena: ${ask}`}]});
-    const x = (j.content || []).find(b => b.type === 'tool_use')?.input;
+    const x = toolResult(j, 'ispravi_stavku');
     if (!x) throw new Error('Odgovor nije u očekivanom obliku.');
     const set = (id, val) => { const el = $(id); if (el && val != null && String(el.value) !== String(val)) { el.value = val; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } };
     if (kind === 'activity' && +x.met > 1 && +x.minute) x.kcal = Math.round((x.met - 1) * w * x.minute / 60);
