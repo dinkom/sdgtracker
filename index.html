@@ -796,7 +796,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG tracker 1.18</p>`;
+  <p class="muted small" style="text-align:center">SDG tracker 1.19</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -986,16 +986,61 @@ function toolResult(j, name) {
   if (m) { try { return JSON.parse(m[0]); } catch (e) {} }
   return null;
 }
+// pokušaj protumačiti JSON koji je model vratio kao tekst
+function parseLoose(v) {
+  if (typeof v !== 'string') return v;
+  const t = v.trim();
+  try { return JSON.parse(t); } catch (e) {}
+  const m = t.match(/[\[{][\s\S]*[\]}]/);
+  if (m) { try { return JSON.parse(m[0]); } catch (e) {} }
+  return undefined;
+}
+// popravi najčešće varijante neispravnog odgovora
+function normalizeEntry(out) {
+  out = parseLoose(out);
+  if (Array.isArray(out)) out = {stavke:out};
+  if (!out || typeof out !== 'object') return null;
+  let st = parseLoose(out.stavke ?? out.items ?? out.stavka);
+  if (st && !Array.isArray(st) && typeof st === 'object') st = Array.isArray(st.stavke) ? st.stavke : [st];
+  if (st == null && (out.koraci != null || out.napomena)) st = [];
+  if (!Array.isArray(st)) return null;
+  st = st.map(parseLoose).filter(x => x && typeof x === 'object' && (x.naziv || x.kcal != null));
+  for (const x of st) {
+    if (!x.vrsta) x.vrsta = (x.minute != null || x.met != null) ? 'aktivnost' : 'hrana';
+    for (const k of ['grami', 'minute', 'met', 'kcal', 'proteini', 'ugljikohidrati', 'masti'])
+      if (typeof x[k] === 'string') { const n = parseFloat(x[k].replace(',', '.')); x[k] = isNaN(n) ? undefined : n; }
+  }
+  const kor = typeof out.koraci === 'string' ? parseFloat(out.koraci.replace(/\./g, '')) : out.koraci;
+  return {...out, stavke:st, koraci:kor};
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const isTransient = e => /preopterećen|predugo|Nema veze|Greška 5\d\d|Previše zahtjeva/.test(e.message);
+function logBad(kind, data) {
+  try { localStorage.setItem('sdg-last-bad', JSON.stringify({kind, at:new Date().toISOString(), data:JSON.stringify(data).slice(0, 4000)})); } catch (e) {}
+  console.warn('SDG: neispravan odgovor', kind, data);
+}
 async function askClaude(text, ph) {
   const w = weightAt(cur) || weightAt(todayKey()) || 80;
   const content = ph ? [{type:'image', source:{type:'base64', media_type:'image/jpeg', data:ph.data}},
                         {type:'text', text:text || 'Procijeni obrok na fotografiji.'}] : text;
   const model = ph ? (S().photoModel || S().model) : S().model;
-  const j = await callClaude({max_tokens:4000, system:systemPrompt(w, cur), tools:[TOOL],
-    tool_choice:{type:'tool', name:'zapisi_unos'}, messages:[{role:'user', content}]}, model);
-  const out = toolResult(j, 'zapisi_unos');
-  if (!out || !Array.isArray(out.stavke)) throw new Error('Odgovor nije u očekivanom obliku. Pokušaj ponovno.');
-  return {...out, _model:j.model || model};
+  const body = {max_tokens:4000, system:systemPrompt(w, cur), tools:[TOOL],
+    tool_choice:{type:'tool', name:'zapisi_unos'}, messages:[{role:'user', content}]};
+  let lastErr;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const j = await callClaude(body, model);
+      const out = normalizeEntry(toolResult(j, 'zapisi_unos'));
+      if (out) return {...out, _model:j.model || model};
+      logBad('unos', j);
+      lastErr = new Error('Claude je vratio neispravan odgovor. Pokušaj ponovno.');
+    } catch (e) {
+      if (!isTransient(e)) throw e;
+      lastErr = e;
+    }
+    if (attempt < 3) await sleep(600 * attempt);
+  }
+  throw lastErr;
 }
 
 /* ---------- input & processing ---------- */
@@ -1197,7 +1242,7 @@ async function aiEdit(kind) {
   const btn = $('#eAskBtn'); btn.disabled = true; btn.textContent = '…';
   const w = weightAt(cur) || weightAt(todayKey()) || 80;
   try {
-    const j = await callClaude({max_tokens:800, tools:[EDIT_TOOL], tool_choice:{type:'tool', name:'ispravi_stavku'},
+    const editBody = {max_tokens:1500, tools:[EDIT_TOOL], tool_choice:{type:'tool', name:'ispravi_stavku'},
       system:`Korisnik ispravlja jednu već zabilježenu stavku u aplikaciji za praćenje kalorija. Primijeni njegovu izmjenu i vrati cijelu ispravljenu stavku alatom ispravi_stavku.
 - Mijenjaj samo ono na što izmjena utječe; ostale vrijednosti prepiši nepromijenjene.
 - Dodaci: žlica ulja ~10 g ≈ 90 kcal i 10 g masti; žličica ~5 g ≈ 45 kcal; maslac 10 g ≈ 72 kcal i 8 g masti; žlica šećera ~12 g ≈ 48 kcal UH. "Malo ulja" bez količine = 1 žlica.
@@ -1206,9 +1251,18 @@ async function aiEdit(kind) {
 - Za aktivnost vrati minute i met; kcal = (MET − 1) × ${w} kg × minute / 60.
 - U polje objasnjenje kratko (do 8 riječi) napiši što si promijenio.`,
       messages:[{role:'user', content:`Trenutna stavka: ${JSON.stringify(formEntry(kind))}
-Izmjena: ${ask}`}]});
-    const x = toolResult(j, 'ispravi_stavku');
-    if (!x) throw new Error('Odgovor nije u očekivanom obliku.');
+Izmjena: ${ask}`}]};
+    let x = null;
+    for (let attempt = 1; attempt <= 3 && !x; attempt++) {
+      try {
+        const j = await callClaude(editBody);
+        x = parseLoose(toolResult(j, 'ispravi_stavku'));
+        if (!x || typeof x !== 'object' || (x.kcal == null && !x.naziv)) { logBad('ispravak', j); x = null; }
+      } catch (e) { if (!isTransient(e) || attempt === 3) throw e; }
+      if (!x && attempt < 3) await sleep(600 * attempt);
+    }
+
+    if (!x) throw new Error('Claude je vratio neispravan odgovor. Pokušaj ponovno.');
     const set = (id, val) => { const el = $(id); if (el && val != null && String(el.value) !== String(val)) { el.value = val; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } };
     if (kind === 'activity' && +x.met > 1 && +x.minute) x.kcal = Math.round((x.met - 1) * w * x.minute / 60);
     set('#eName', x.naziv); set('#eAmount', x.kolicina);
