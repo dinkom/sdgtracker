@@ -111,6 +111,8 @@ label.chk input{width:22px;height:22px;accent-color:var(--accent);flex:none}
 /* composer */
 #composer{position:fixed;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom));z-index:10;padding:8px 12px;background:linear-gradient(to top,var(--bg) 70%,transparent)}
 .comp{max-width:536px;margin:0 auto;display:flex;align-items:flex-end;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:26px;padding:6px;box-shadow:var(--shadow)}
+@media (max-width:420px){.comp{gap:4px;padding:5px}.mic,.send{width:42px;height:42px}.cam{width:34px}.comp textarea{padding:10px 2px}}
+.comp textarea::placeholder{font-size:var(--ph-size,16px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .comp textarea{flex:1;border:0;background:none;resize:none;padding:10px 4px;max-height:120px;font-size:16px;line-height:1.35;outline:none}
 .mic,.send{width:46px;height:46px;border-radius:50%;border:0;display:grid;place-items:center;flex:none}
 .mic{background:var(--accent);color:var(--on-accent)}
@@ -550,7 +552,7 @@ function dayHtml() {
 
   const es = entriesOf(k);
   if (!es.length && !t.steps) {
-    h += `<div class="empty"><b>Još ništa za ovaj dan</b>Pritisni mikrofon i reci npr.<br>„za doručak tri jaja i kriška kruha“<br>ili „${G('trčao', 'trčala')} sam 30 minuta lagano“.</div>`;
+    h += `<div class="empty"><b>Još ništa za ovaj dan</b>Pritisni mikrofon i reci ili napiši npr.<br>„za doručak tri jaja i kriška kruha“<br>ili „${G('trčao', 'trčala')} sam 30 minuta lagano“.</div>`;
   } else {
     const groups = {};
     for (const e of es) {
@@ -869,7 +871,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 2.5</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 2.6</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -1140,7 +1142,22 @@ async function askClaude(text, ph) {
 /* ---------- input & processing ---------- */
 const inp = $('#inp');
 let photo = null;
-function autosize() { inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 120) + 'px'; $('#send').disabled = busy || (!inp.value.trim() && !photo); }
+// placeholder uvijek u jednom redu: smanji mu font ako ne stane
+let phCanvas;
+function fitPlaceholder() {
+  const cs = getComputedStyle(inp), avail = inp.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2;
+  if (avail <= 0) return;
+  const ctx = (phCanvas ||= document.createElement('canvas')).getContext('2d');
+  let size = parseFloat(cs.fontSize);
+  for (; size > 12; size -= 0.5) { ctx.font = `${cs.fontWeight} ${size}px ${cs.fontFamily}`; if (ctx.measureText(inp.placeholder).width <= avail) break; }
+  inp.style.setProperty('--ph-size', size + 'px');
+}
+function autosize() {
+  inp.style.height = 'auto';
+  // prazno polje: visina jednog reda (placeholder ne smije razvući polje)
+  if (inp.value) inp.style.height = Math.min(inp.scrollHeight, 120) + 'px';
+  $('#send').disabled = busy || (!inp.value.trim() && !photo);
+}
 function setPhoto(ph) {
   photo = ph; $('#photoChip').hidden = !ph;
   if (ph) $('#photoImg').src = ph.url;
@@ -1851,7 +1868,9 @@ window.addEventListener('focus', onResume);
 window.addEventListener('pageshow', onResume);
 setInterval(() => { if (!document.hidden && checkDay() && !$('#sheet').classList.contains('open')) render(); }, 30000);
 
-render(); autosize();
+render(); autosize(); fitPlaceholder();
+window.addEventListener('resize', fitPlaceholder);
+document.fonts?.ready?.then(fitPlaceholder);
 setTimeout(checkAch, 600);
 function syncThemeColor() {
   const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
