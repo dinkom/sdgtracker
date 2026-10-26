@@ -865,7 +865,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 2.0</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 2.1</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -1071,9 +1071,14 @@ function normalizeEntry(out) {
   if (!out || typeof out !== 'object') return null;
   let st = parseLoose(out.stavke ?? out.items ?? out.stavka);
   if (st && !Array.isArray(st) && typeof st === 'object') st = Array.isArray(st.stavke) ? st.stavke : [st];
+  // model je ponekad polja stavke stavio izravno u odgovor umjesto u popis
+  const looksItem = o => o && typeof o === 'object' && (o.naziv || o.vrsta) && (o.kcal != null || o.minute != null || o.met != null || o.grami != null);
+  if ((st == null || (Array.isArray(st) && !st.length)) && looksItem(out)) {
+    const {stavke, items, stavka, koraci, napomena, ...item} = out; st = [item];
+  }
   if (st == null && (out.koraci != null || out.napomena)) st = [];
   if (!Array.isArray(st)) return null;
-  st = st.map(parseLoose).filter(x => x && typeof x === 'object' && (x.naziv || x.kcal != null));
+  st = st.map(parseLoose).filter(x => x && typeof x === 'object' && (x.naziv || x.kcal != null || x.minute != null || x.met != null || x.grami != null));
   for (const x of st) {
     if (!x.vrsta) x.vrsta = (x.minute != null || x.met != null) ? 'aktivnost' : 'hrana';
     for (const k of ['grami', 'minute', 'met', 'kcal', 'proteini', 'ugljikohidrati', 'masti'])
@@ -1100,7 +1105,16 @@ async function askClaude(text, ph) {
     try {
       const j = await callClaude(body, model);
       const out = normalizeEntry(toolResult(j, 'zapisi_unos'));
-      if (out) return {...out, _model:j.model || model};
+      // prazan popis uz napomenu koja očito opisuje unos = model je "zaboravio" stavku; pitaj još jednom
+      const nap = out?.napomena || '';
+      const suspicious = out && !out.stavke.length && out.koraci == null && attempt === 1 &&
+        /\d|\bMET\b|kcal/i.test(nap) && !/ne sadrži|ne sadrzi|nema hran|nije prepozn|nisam prepozn/i.test(nap);
+      if (out && !suspicious) return {...out, _model:j.model || model};
+      if (suspicious) {
+        logBad('prazno', j);
+        if (!body.system.includes('PONOVLJENI UPIT')) body.system += '\n\nPONOVLJENI UPIT: prethodni odgovor imao je praznu listu stavke iako je unos opisivao hranu ili aktivnost. Svaku namirnicu i aktivnost OBAVEZNO stavi u listu stavke (za aktivnost s minute i met).';
+        continue;
+      }
       logBad('unos', j);
       lastErr = new Error('Claude je vratio neispravan odgovor. Pokušaj ponovno.');
     } catch (e) {
