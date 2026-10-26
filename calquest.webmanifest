@@ -1,6 +1,6 @@
 {
-  "name": "SDG tracker",
-  "short_name": "SDG tracker",
+  "name": "SDG CalQuest",
+  "short_name": "CalQuest",
   "lang": "hr",
   "start_url": "./",
   "scope": "./",

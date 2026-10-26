@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>SDG tracker</title>
+<title>SDG CalQuest</title>
 <meta name="theme-color" content="#f5f2ec" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#121110" media="(prefers-color-scheme: dark)">
-<link rel="manifest" href="sdg-tracker.webmanifest">
+<link rel="manifest" href="calquest.webmanifest">
 <link rel="icon" href="sdg-icon-192.png">
 <link rel="apple-touch-icon" href="sdg-icon-192.png">
 <style>
@@ -277,6 +277,71 @@ body.locked{overflow:hidden}
 .mrow span{color:var(--muted)}
 .mrow i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px}
 .drow .kc small{display:block;text-align:right;font-weight:500;font-size:12px;color:var(--muted)}
+.lvl{display:flex;align-items:center;gap:14px}
+.lvl .ring2{width:64px;height:64px;flex:none;position:relative}
+.lvl .ring2 svg{width:64px;height:64px;transform:rotate(-90deg)}
+.lvl .ring2 b{position:absolute;inset:0;display:grid;place-items:center;font-size:18px;font-variant-numeric:tabular-nums}
+.lvl .t{flex:1;min-width:0}
+.lvl .t span{display:block;font-size:12px;color:var(--muted)}
+.lvl .t strong{display:block;font-size:20px;letter-spacing:-.01em}
+.lvl .t small{color:var(--muted);font-size:13px}
+.gp{margin-top:4px}
+.gp .row3{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.gp .row3 b{color:var(--text)}
+.gp .track{position:relative;height:14px;border-radius:7px;background:var(--surface2);margin:8px 0 6px;overflow:hidden}
+.gp .track i{position:absolute;left:0;top:0;bottom:0;border-radius:7px;background:linear-gradient(90deg,var(--accent),color-mix(in srgb,var(--accent) 60%,#fff))}
+.gp .track em{position:absolute;top:0;bottom:0;width:2px;background:var(--surface);opacity:.9}
+.gp .pct{font-size:30px;font-weight:750;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.gp .pct small{font-size:14px;font-weight:500;color:var(--muted);margin-left:6px}
+.achgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 6px}
+.ach{border:0;background:none;padding:4px 2px;display:flex;flex-direction:column;align-items:center;gap:4px;position:relative}
+.ach .badge{width:74px;height:auto}
+.ach span{font-size:12px;line-height:1.2;text-align:center;font-weight:600}
+.ach.off span{color:var(--muted);font-weight:500}
+.ach .lock{position:absolute;top:2px;right:calc(50% - 40px);width:20px;height:20px;border-radius:50%;background:var(--surface2);display:grid;place-items:center;font-size:11px;box-shadow:0 0 0 2px var(--surface)}
+.ach .mini{width:56px;height:5px;border-radius:3px;background:var(--surface2);overflow:hidden}
+.ach .mini i{display:block;height:100%;background:var(--accent)}
+.badge.locked{filter:grayscale(1) contrast(.85);opacity:.38}
+.tierchip{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px;letter-spacing:.02em}
+.tier-bronca{background:#f6dcc4;color:#7a3f12}.tier-srebro{background:#e4e9ef;color:#3b4652}
+.tier-zlato{background:#fff0b8;color:#7a5600}.tier-legenda{background:#3a0f22;color:#ffd76a}
+.achd{text-align:center}
+.achd .badge{width:150px;margin:6px auto 4px;display:block}
+.achd h3{margin:8px 0 4px}
+.achd p{margin:0 0 12px;color:var(--muted)}
+.achd .bar{height:10px;max-width:260px;margin:6px auto}
+/* otključavanje */
+#achFx{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:20px;overflow:hidden}
+#achFx .fx-back{position:absolute;inset:0;background:radial-gradient(circle at 50% 40%,rgba(52,38,12,.9),rgba(8,6,4,.96) 70%);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);animation:fxFade .35s ease-out both}
+#achFx .fx-rays{position:absolute;left:50%;top:40%;width:900px;height:900px;margin:-450px 0 0 -450px;border-radius:50%;
+  background:repeating-conic-gradient(from 0deg,rgba(255,225,130,.22) 0 9deg,transparent 9deg 22deg);
+  -webkit-mask:radial-gradient(circle,#000 0 18%,transparent 62%);mask:radial-gradient(circle,#000 0 18%,transparent 62%);
+  animation:fxSpin 14s linear infinite,fxFade .6s ease-out both}
+#achFx .fx-box{position:relative;text-align:center;color:#fff;max-width:340px;width:100%}
+#achFx .fx-kicker{font-size:13px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#ffd76a;animation:fxUp .5s .15s ease-out both}
+#achFx .fx-badge{position:relative;width:190px;margin:14px auto 6px;animation:fxPop .9s cubic-bezier(.2,1.6,.4,1) .1s both}
+#achFx .fx-badge .badge{width:190px;height:auto;filter:drop-shadow(0 10px 28px rgba(255,200,80,.45))}
+#achFx .fx-badge::after{content:"";position:absolute;inset:8% 14%;border-radius:50%;pointer-events:none;
+  background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.75) 50%,transparent 65%);background-size:250% 100%;
+  mix-blend-mode:overlay;animation:fxShine 1.2s .9s ease-in-out both}
+#achFx h3{font-size:26px;margin:10px 0 6px;letter-spacing:-.01em;animation:fxUp .5s .45s ease-out both}
+#achFx p{margin:0 auto 18px;color:rgba(255,255,255,.8);max-width:290px;animation:fxUp .5s .55s ease-out both}
+#achFx .tierchip{animation:fxUp .5s .35s ease-out both}
+#achFx .lvlup{margin:-6px 0 16px;font-weight:700;color:#ffd76a;animation:fxUp .5s .65s ease-out both}
+#achFx .btns{justify-content:center;animation:fxUp .5s .7s ease-out both}
+#achFx .btn{min-width:150px;flex:0 0 auto}
+#achFx .btn.ghost{background:rgba(255,255,255,.14);color:#fff;box-shadow:none}
+#achFx .fx-mini{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:16px 0 18px}
+#achFx .fx-mini .badge{width:56px;height:auto;animation:fxPop .6s cubic-bezier(.2,1.6,.4,1) both}
+#achFx .cf{position:absolute;left:50%;top:40%;width:9px;height:14px;border-radius:2px;background:var(--c);opacity:0;
+  animation:fxConf var(--d) cubic-bezier(.15,.7,.3,1) var(--w) forwards}
+@keyframes fxFade{from{opacity:0}to{opacity:1}}
+@keyframes fxSpin{to{transform:rotate(360deg)}}
+@keyframes fxUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes fxPop{0%{opacity:0;transform:scale(.15) rotate(-35deg)}60%{opacity:1;transform:scale(1.12) rotate(6deg)}100%{transform:scale(1) rotate(0)}}
+@keyframes fxShine{from{background-position:120% 0}to{background-position:-120% 0}}
+@keyframes fxConf{0%{opacity:1;transform:translate(0,0) rotate(0)}85%{opacity:1}100%{opacity:0;transform:translate(var(--dx),var(--dy)) rotate(var(--r))}}
+@media (prefers-reduced-motion:reduce){#achFx *{animation-duration:.01s!important;animation-delay:0s!important}#achFx .fx-rays{animation:none}#achFx .cf{display:none}}
 #toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translate(-50%,20px);z-index:30;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:14px;font-size:14px;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:all .25s;text-align:center}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 </style>
@@ -312,12 +377,13 @@ body.locked{overflow:hidden}
   <button data-tab="pregled"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20V12M10 20V6M15 20v-9M20 20V9"/></svg>Pregled</button>
   <button data-tab="tezina"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"/><path d="M15 7h5v5"/></svg>Težina</button>
   <button data-tab="obroci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v8a3 3 0 0 0 3 3v7M8 3v6M11 3v8a3 3 0 0 1-3 3"/><path d="M17 21V3c-2 1-3 4-3 8h3"/></svg>Obroci</button>
-  <button data-tab="postavke"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Postavke</button>
+  <button data-tab="postavke"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Profil</button>
 </div></nav>
 
 <div class="scrim" id="scrim"></div>
 <div class="sheet" id="sheet"></div>
 <div id="toast"></div>
+<div id="achFx" hidden></div>
 <input type="file" id="impFile" accept="application/json,.json" hidden>
 
 <script>
@@ -326,7 +392,7 @@ const KEY = 'zalogaj-v1';
 const API = 'https://api.anthropic.com/v1/messages';
 const DEF = {skin:'osnovni', apiKey:'', model:'claude-haiku-5-5', photoModel:'claude-sonnet-5-5', sex:'m', age:'', height:'', activity:1.375, goalRate:-0.25,
              proteinPerKg:1.8, addExercise:true, autoProcess:true, useAdaptive:false, stepsBaseline:3000};
-const NUMKEYS = ['age','height','activity','goalRate','proteinPerKg','stepsBaseline'];
+const NUMKEYS = ['age','height','activity','goalRate','proteinPerKg','stepsBaseline','goalWeight'];
 const MEALS = ['doručak','ručak','večera','užina'];
 const DAYN = ['ned','pon','uto','sri','čet','pet','sub'];
 
@@ -350,13 +416,15 @@ function loadDb() {
   let d = null;
   try { d = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
   d = d || {};
-  return {settings:{...DEF, ...(d.settings || {})}, days:d.days || {}, weights:d.weights || {}, meals:d.meals || []};
+  return {settings:{...DEF, ...(d.settings || {})}, days:d.days || {}, weights:d.weights || {}, meals:d.meals || [],
+    ach:d.ach || null, stats:d.stats || {}};
 }
 let db = loadDb();
-function save() {
+function persist() {
   try { localStorage.setItem(KEY, JSON.stringify(db)); }
   catch (e) { toast('Spremanje nije uspjelo: ' + e.message); }
 }
+function save() { persist(); queueAch(); }
 const S = () => db.settings;
 
 let tab = 'dan', cur = todayKey(), pending = null, busy = false, wRange = 30, editKind = 'food';
@@ -438,7 +506,7 @@ function renderHeader() {
       <button class="datelbl" data-act="today">${labelDate(cur)}<small>${sub}</small></button>
       <button class="iconbtn" data-act="next" aria-label="Sljedeći dan" ${cur >= t ? 'disabled' : ''}>›</button></div>`;
   } else {
-    h.innerHTML = `<h1>${{pregled:'Pregled', tezina:'Težina', obroci:'Moji obroci', postavke:'Postavke'}[tab]}</h1>`;
+    h.innerHTML = `<h1>${{pregled:'Pregled', tezina:'Težina', obroci:'Moji obroci', postavke:'Profil'}[tab]}</h1>`;
   }
 }
 
@@ -447,7 +515,7 @@ function dayHtml() {
   let h = '';
   if (tgt == null) {
     h += `<div class="card notice"><b>Dovrši profil</b><p>Upiši dob, visinu i težinu da izračunam dnevni cilj.</p>
-      <button class="btn sm" data-act="tab" data-tab="postavke">Otvori postavke</button></div>`;
+      <button class="btn sm" data-act="tab" data-tab="postavke">Otvori profil</button></div>`;
   }
   const budget = tgt != null ? tgt + (s.addExercise ? t.act : 0) : null;
   const left = budget != null ? Math.round(budget - t.kcal) : null;
@@ -750,7 +818,7 @@ function mealsHtml() {
 /* settings */
 function settingsHtml() {
   const t = todayKey();
-  return `<div class="card"><h2>Profil</h2>
+  return profileTopHtml() + `<div class="card"><h2>Osobni podaci</h2>
     <div class="grid2">
       <label class="f">Spol<select data-s="sex"><option value="m">muški</option><option value="f">ženski</option></select></label>
       <label class="f">Dob<input data-s="age" type="number" inputmode="numeric" min="14" max="100"></label>
@@ -771,6 +839,7 @@ function settingsHtml() {
       <option value="-0.75">Mršavljenje 0,75 kg/tj.</option><option value="-0.5">Mršavljenje 0,5 kg/tj.</option>
       <option value="-0.25">Mršavljenje 0,25 kg/tj.</option><option value="0">Održavanje</option>
       <option value="0.25">Dobivanje 0,25 kg/tj.</option><option value="0.5">Dobivanje 0,5 kg/tj.</option></select></label>
+    <label class="f">Ciljna težina (kg)<input data-s="goalWeight" id="goalIn" type="number" inputmode="decimal" step="0.1" min="30" max="300" placeholder="npr. 85"></label>
     <label class="f">Proteini (g po kg tjelesne mase)<input data-s="proteinPerKg" type="number" inputmode="decimal" step="0.1" min="0.8" max="3"></label>
     <label class="chk"><input type="checkbox" data-s="addExercise"> Kalorije od aktivnosti dodaj u dnevni budžet</label>
     <div class="sumbox" id="sumBox"></div></div>
@@ -796,7 +865,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG tracker 1.19</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 2.0</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -1069,12 +1138,13 @@ function setBusy(b) { busy = b; $('#send').classList.toggle('busy', b); autosize
 async function processInput() {
   const text = inp.value.trim(), ph = photo;
   if ((!text && !ph) || busy) return;
-  if (!S().apiKey.trim()) { toast('Prvo upiši API ključ u Postavkama.'); return; }
+  if (!S().apiKey.trim()) { toast('Prvo upiši API ključ u Profilu.'); return; }
   setBusy(true);
   try {
-    const res = await askClaude(text, ph);
-    inp.value = ''; setPhoto(null);
+    const res = await askClaude(text, ph), voice = usedVoice;
+    inp.value = ''; setPhoto(null); usedVoice = false;
     openConfirm(text, res, ph);
+    if (pending) pending.voice = voice;
   } catch (e) { toast(e.message, 4500); }
   finally { setBusy(false); }
 }
@@ -1175,6 +1245,9 @@ function saveConfirm() {
     const name = ($('#cSaveName').value || '').trim() || p.text.slice(0, 40);
     db.meals.push({id:uid(), name, items:p.items.filter(i => i.kind === 'food').map(clean).map(({id, ts, meal, ...r}) => ({...r, meal}))});
   }
+  db.stats ||= {};
+  if (p.voice) db.stats.voice = (db.stats.voice || 0) + 1;
+  if (p.photo) db.stats.photo = (db.stats.photo || 0) + 1;
   save(); closeSheet(); render();
   toast('Spremljeno');
 }
@@ -1238,7 +1311,7 @@ function formEntry(kind) {
 async function aiEdit(kind) {
   const ask = $('#eAsk').value.trim();
   if (!ask) { toast('Reci ili upiši izmjenu'); return; }
-  if (!S().apiKey.trim()) { toast('Prvo upiši API ključ u Postavkama.'); return; }
+  if (!S().apiKey.trim()) { toast('Prvo upiši API ključ u Profilu.'); return; }
   const btn = $('#eAskBtn'); btn.disabled = true; btn.textContent = '…';
   const w = weightAt(cur) || weightAt(todayKey()) || 80;
   try {
@@ -1313,7 +1386,7 @@ function saveEntry(id, kind) {
 
 /* ---------- speech ---------- */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let rec = null, listening = false;
+let rec = null, listening = false, usedVoice = false;
 function setMic(on) { listening = on; $('#mic').classList.toggle('on', on); $('#mic').setAttribute('aria-label', on ? 'Zaustavi' : 'Diktiraj'); }
 let editRec = null;
 function dictate(input, btn, onEnd) {
@@ -1339,6 +1412,7 @@ function toggleMic() {
   rec = new SR();
   rec.lang = 'hr-HR'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
   rec.onresult = e => {
+    usedVoice = true;
     let fin = '', interim = '';
     for (const r of e.results) (r.isFinal ? (fin += r[0].transcript + ' ') : (interim += r[0].transcript));
     finalText = fin.trim();
@@ -1362,9 +1436,9 @@ function toast(msg, ms = 2500) {
 }
 function exportData() {
   const data = {...db, settings:{...db.settings, apiKey:''}};
-  const blob = new Blob([JSON.stringify({app:'sdg-tracker', version:1, exported:new Date().toISOString(), data}, null, 1)], {type:'application/json'});
+  const blob = new Blob([JSON.stringify({app:'sdg-calquest', version:1, exported:new Date().toISOString(), data}, null, 1)], {type:'application/json'});
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = `sdg-tracker-kopija-${todayKey()}.json`;
+  a.href = URL.createObjectURL(blob); a.download = `calquest-kopija-${todayKey()}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
@@ -1374,7 +1448,7 @@ async function importData(file) {
     if (typeof d.days !== 'object' || typeof d.weights !== 'object') throw new Error();
     if (!confirm('Uvoz će zamijeniti sve trenutne podatke. Nastaviti?')) return;
     const key = db.settings.apiKey;
-    db = {settings:{...DEF, ...(d.settings || {}), apiKey:key}, days:d.days || {}, weights:d.weights || {}, meals:d.meals || []};
+    db = {settings:{...DEF, ...(d.settings || {}), apiKey:key}, days:d.days || {}, weights:d.weights || {}, meals:d.meals || [], ach:d.ach || null, stats:d.stats || {}};
     save(); render(); toast('Podaci uvezeni');
   } catch (e) { toast('Datoteka nije ispravna kopija.'); }
 }
@@ -1385,6 +1459,213 @@ async function testKey() {
   catch (e) { toast(e.message, 4500); }
   finally { b.disabled = false; b.textContent = 'Testiraj ključ'; }
 }
+
+/* ---------- postignuća ---------- */
+const TIERS = {
+  bronca:{naziv:'Bronca', pts:10, rim:['#f6c08e', '#a35d24'], face:'#fbe6d0', ink:'#6e3a12'},
+  srebro:{naziv:'Srebro', pts:25, rim:['#ffffff', '#8692a0'], face:'#eef2f6', ink:'#3b4652'},
+  zlato:{naziv:'Zlato', pts:50, rim:['#fff3a6', '#c08a0a'], face:'#fff6d2', ink:'#7a5600'},
+  legenda:{naziv:'Legenda', pts:100, rim:['#ff7b8e', '#8e0d2c'], face:'#2b1022', ink:'#ffd76a'},
+};
+const LEVELS = [[0, 'Početnik'], [40, 'Rekreativac'], [120, 'Redoviti polaznik'], [250, 'Kružni ratnik'], [400, 'Šampion'], [605, 'Legenda kruga']];
+const goalAch = (id, tier, naziv, pct, opis) => ({id, tier, naziv, opis, g:'peak', n:pct + '%',
+  ok:c => c.gp && c.gp.pct >= pct / 100 - 1e-9, p:c => c.gp ? [Math.round(c.gp.pct * 100), pct] : null,
+  hint:c => c.gp ? null : 'Postavi ciljnu težinu u Profilu → Cilj.'});
+const ACH = [
+  {id:'prvi_unos', tier:'bronca', naziv:'Prvi zalogaj', opis:'Zabilježi svoj prvi obrok.', g:'plate', ok:c => c.foodDays >= 1},
+  {id:'glas', tier:'bronca', naziv:'Rekao i zapisao', opis:'Spremi prvi unos izgovoren glasom.', g:'mic', ok:c => (db.stats.voice || 0) >= 1},
+  {id:'foto', tier:'bronca', naziv:'Kamera, hrana!', opis:'Spremi prvi obrok procijenjen s fotografije.', g:'camera', ok:c => (db.stats.photo || 0) >= 1},
+  {id:'vaga1', tier:'bronca', naziv:'Na vagu', opis:'Zabilježi prvo vaganje.', g:'scale', ok:c => c.weighs >= 1},
+  {id:'trening1', tier:'bronca', naziv:'Prvi krug', opis:'Zabilježi prvi trening ili aktivnost.', g:'dumbbell', ok:c => c.acts >= 1},
+  {id:'obrok1', tier:'bronca', naziv:'Kuhar iz navike', opis:'Spremi svoj prvi obrok za brzi unos.', g:'bookmark', ok:c => db.meals.length >= 1},
+  {id:'plan1', tier:'bronca', naziv:'Pogodak', opis:'Završi jedan dan unutar plana.', g:'target', ok:c => c.planDays >= 1},
+  {id:'niz3', tier:'bronca', naziv:'Zagrijavanje', opis:'Bilježi prehranu 3 dana zaredom.', g:'flame', n:'3', ok:c => c.best >= 3, p:c => [c.best, 3]},
+  {id:'pad', tier:'srebro', naziv:'Prvi pad', opis:'Vaga pokaže manje nego prošli put.', g:'down', ok:c => c.drop},
+  {id:'niz7', tier:'srebro', naziv:'Tjedan bez rupe', opis:'Bilježi prehranu 7 dana zaredom.', g:'flame', n:'7', ok:c => c.best >= 7, p:c => [c.best, 7]},
+  {id:'koraci', tier:'srebro', naziv:'10.000 koraka', opis:'Skupi 10.000 koraka u jednom danu.', g:'steps', ok:c => c.maxSteps >= 10000, p:c => [c.maxSteps, 10000]},
+  {id:'protein', tier:'srebro', naziv:'Proteinski tjedan', opis:'Pogodi cilj proteina 5 dana u istom tjednu.', g:'protein', ok:c => c.protWeek >= 5, p:c => [c.protWeek, 5]},
+  {id:'krugovi', tier:'srebro', naziv:'Kružni ritam', opis:'Zabilježi 3 treninga u istom tjednu.', g:'dumbbell', n:'×3', ok:c => c.trainWeek >= 3, p:c => [c.trainWeek, 3]},
+  {id:'vaga20', tier:'srebro', naziv:'Vaga mi je frend', opis:'Zabilježi 20 vaganja.', g:'scale', n:'20', ok:c => c.weighs >= 20, p:c => [c.weighs, 20]},
+  goalAch('cilj25', 'srebro', 'Četvrtina puta', 25, 'Prijeđi četvrtinu puta do ciljne težine.'),
+  {id:'tjedan', tier:'zlato', naziv:'Savršen tjedan', opis:'Svih 7 dana jednog tjedna (pon–ned) u planu.', g:'calendar', ok:c => c.perfectWeek, p:c => [c.bestWeekPlan, 7]},
+  goalAch('cilj50', 'zlato', 'Pola puta', 50, 'Prijeđi pola puta do ciljne težine.'),
+  goalAch('cilj75', 'zlato', 'Tri četvrtine', 75, 'Prijeđi tri četvrtine puta do ciljne težine.'),
+  {id:'niz30', tier:'zlato', naziv:'Navika', opis:'Bilježi prehranu 30 dana zaredom.', g:'flame', n:'30', ok:c => c.best >= 30, p:c => [c.best, 30]},
+  {id:'plan20', tier:'zlato', naziv:'Dvadeset pogodaka', opis:'Skupi 20 dana unutar plana.', g:'target', n:'20', ok:c => c.planDays >= 20, p:c => [c.planDays, 20]},
+  {...goalAch('cilj100', 'legenda', 'Cilj ostvaren!', 100, 'Dođi do svoje ciljne težine.'), g:'trophy', n:null},
+];
+function trendNow() { const ser = weightSeries(); return ser.length ? ser.at(-1).t : null; }
+function ensureGoalStart() {
+  const st = S();
+  if (st.goalWeight && !st.goalStartW) { const now = trendNow(); if (now != null) { st.goalStartW = r1(now); st.goalStartDate = todayKey(); persist(); } }
+}
+function goalProgress() {
+  const st = S(), g = +st.goalWeight, a = +st.goalStartW, now = trendNow();
+  if (!g || !a || now == null || Math.abs(g - a) < 0.1) return null;
+  const pct = Math.max(0, Math.min(1, (now - a) / (g - a)));
+  return {pct, start:a, goal:g, now, left:pct >= 1 ? 0 : Math.abs(g - now)};
+}
+function dayInPlan(k, t) {
+  if (k >= t || !entriesOf(k).some(e => e.kind !== 'activity')) return false;
+  const tt = totals(k), tg = target(k); if (tg == null) return false;
+  const d = tt.kcal - (tg + (S().addExercise ? tt.act : 0));
+  return d <= 100 && d >= (S().goalRate < 0 ? -500 : -100);
+}
+function achCtx() {
+  const t = todayKey(), dayKeys = Object.keys(db.days).sort();
+  const foodDays = dayKeys.filter(k => entriesOf(k).some(e => e.kind !== 'activity'));
+  let best = 0, run = 0, prev = null;
+  for (const k of foodDays) { run = prev && dayDiff(prev, k) === 1 ? run + 1 : 1; best = Math.max(best, run); prev = k; }
+  const planDays = foodDays.filter(k => dayInPlan(k, t)).length;
+  const weeks = {};
+  for (const k of dayKeys) { const wd = (parseKey(k).getDay() + 6) % 7; (weeks[addDays(k, -wd)] ||= []).push(k); }
+  let perfectWeek = false, bestWeekPlan = 0, protWeek = 0, trainWeek = 0;
+  for (const mon of Object.keys(weeks)) {
+    let n = 0; for (let i = 0; i < 7; i++) if (dayInPlan(addDays(mon, i), t)) n++;
+    bestWeekPlan = Math.max(bestWeekPlan, n); if (n === 7) perfectWeek = true;
+    protWeek = Math.max(protWeek, weeks[mon].filter(k => { const w = weightAt(k); return w && entriesOf(k).some(e => e.kind !== 'activity') && totals(k).p >= w * S().proteinPerKg * 0.95; }).length);
+    trainWeek = Math.max(trainWeek, weeks[mon].reduce((sm, k) => sm + entriesOf(k).filter(e => e.kind === 'activity').length, 0));
+  }
+  const wk = Object.keys(db.weights).sort();
+  let drop = false; for (let i = 1; i < wk.length; i++) if (+db.weights[wk[i]] < +db.weights[wk[i - 1]]) { drop = true; break; }
+  return {foodDays:foodDays.length, best, planDays, perfectWeek, bestWeekPlan, protWeek, trainWeek, drop, weighs:wk.length,
+    maxSteps:Math.max(0, ...dayKeys.map(k => +db.days[k].steps || 0)),
+    acts:dayKeys.reduce((sm, k) => sm + entriesOf(k).filter(e => e.kind === 'activity').length, 0), gp:goalProgress()};
+}
+const achPoints = () => ACH.filter(a => db.ach?.[a.id]).reduce((sm, a) => sm + TIERS[a.tier].pts, 0);
+const levelOf = pts => { let i = 0; LEVELS.forEach((l, k) => { if (pts >= l[0]) i = k; }); return {i, naziv:LEVELS[i][1], from:LEVELS[i][0], to:LEVELS[i + 1]?.[0] ?? null}; };
+
+let achTimer = null, fxQueue = [];
+function queueAch() { clearTimeout(achTimer); achTimer = setTimeout(checkAch, 450); }
+function checkAch() {
+  ensureGoalStart();
+  const c = achCtx(), first = db.ach == null, ach = db.ach || {}, before = achPoints(), fresh = [];
+  for (const a of ACH) if (!ach[a.id]) { let ok = false; try { ok = !!a.ok(c); } catch (e) {} if (ok) { ach[a.id] = {d:todayKey(), retro:first || undefined}; fresh.push(a); } }
+  if (!first && !fresh.length) return;
+  db.ach = ach; persist();
+  if (tab === 'postavke' && !$('#sheet').classList.contains('open')) render();
+  if (first) { if (fresh.length) showFx({retro:fresh}); return; }
+  const lvlBefore = levelOf(before).i, lvlNow = levelOf(achPoints());
+  fresh.forEach((a, i) => fxQueue.push({a, lvl:i === fresh.length - 1 && lvlNow.i > lvlBefore ? lvlNow.naziv : null}));
+  if ($('#achFx').hidden) nextFx();
+}
+
+/* bedževi */
+let badgeSeq = 0;
+const GLYPH = {
+  plate:'<circle cx="51" cy="51" r="12"/><path d="M31 35v31M28 35v9a3 3 0 0 0 6 0v-9M70 35c-5 4-5 13 0 15v16"/>',
+  mic:'<rect x="43" y="30" width="14" height="25" rx="7"/><path d="M35 49a15 15 0 0 0 30 0M50 64v6M42 70h16"/>',
+  camera:'<path d="M31 42h10l4-6h10l4 6h10v26H31z"/><circle cx="50" cy="55" r="7.5"/>',
+  scale:'<rect x="31" y="32" width="38" height="37" rx="9"/><path d="M41 45a11 11 0 0 1 18 0M50 45l5-6"/>',
+  dumbbell:'<path d="M35 50h30M37 40v20M31 44v12M63 40v20M69 44v12"/>',
+  bookmark:'<path d="M38 30h24v39l-12-8-12 8z"/><path d="M45 43h10"/>',
+  target:'<circle cx="50" cy="50" r="18"/><circle cx="50" cy="50" r="9"/><circle cx="50" cy="50" r="2.5" fill="currentColor"/>',
+  flame:'<path d="M50 27c8 9 16 16 16 28a16 16 0 0 1-32 0c0-7 3-11 7-15 1 6 3 9 6 9-1-9 0-15 3-22z"/>',
+  down:'<rect x="31" y="49" width="38" height="21" rx="6"/><path d="M50 27v15M42 35l8 8 8-8"/>',
+  steps:'<ellipse cx="41" cy="45" rx="6.5" ry="10"/><ellipse cx="59" cy="38" rx="6.5" ry="10"/><path d="M38 60h7M56 53h7"/>',
+  peak:'<path d="M27 66l14-20 8 9 9-16 15 27z"/><path d="M58 39V27l9 3.5-9 3.5"/>',
+  calendar:'<rect x="31" y="34" width="38" height="34" rx="6"/><path d="M31 44h38M40 29v9M60 29v9M41 56l6 6 12-12"/>',
+  trophy:'<path d="M38 30h24v12a12 12 0 0 1-24 0z"/><path d="M38 34h-6a6 6 0 0 0 7 10M62 34h6a6 6 0 0 1-7 10M50 54v7M42 61h16v8H42z"/>',
+  protein:'',
+};
+function badgeSvg(a, locked) {
+  const T = TIERS[a.tier], id = 'bdg' + (++badgeSeq), poly = (n, r1_, r2) => Array.from({length:n * 2}, (_, i) => {
+    const r = i % 2 ? r2 : r1_, an = Math.PI * i / n - Math.PI / 2; return `${(50 + r * Math.cos(an)).toFixed(1)},${(50 + r * Math.sin(an)).toFixed(1)}`; }).join(' ');
+  let back = '', shape;
+  if (a.tier === 'zlato' || a.tier === 'legenda') back = `<path d="M33 72 25 101l10-6 6 9 7-28zM67 72l8 29-10-6-6 9-7-28z" fill="${a.tier === 'legenda' ? '#8e0d2c' : '#b8323e'}"/><path d="M33 72 25 101l10-6 6 9 7-28z" fill="#000" opacity=".15"/>`;
+  if (a.tier === 'bronca') shape = `<circle cx="50" cy="50" r="44" fill="url(#${id})"/>`;
+  else if (a.tier === 'srebro') shape = `<polygon points="${poly(3, 47, 47)}" fill="url(#${id})"/>`;
+  else shape = `<polygon points="${poly(16, 48, 42)}" fill="url(#${id})"/>`;
+  const crown = a.tier === 'legenda' ? `<path d="M36 9l5 7 9-10 9 10 5-7-3 13H39z" fill="#ffd76a" stroke="#8e0d2c" stroke-width="1.5" stroke-linejoin="round"/>` : '';
+  const hasN = a.n != null && a.g !== 'flame';
+  const glyph = a.g === 'protein'
+    ? `<text x="50" y="62" text-anchor="middle" font-size="34" font-weight="900" fill="${T.ink}" font-family="system-ui,sans-serif">P</text><path d="M37 68h26" stroke="${T.ink}" stroke-width="4" stroke-linecap="round"/>`
+    : `<g fill="none" stroke="${T.ink}" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" style="color:${T.ink}" ${hasN ? 'transform="translate(50 46) scale(.72) translate(-50 -50)"' : ''}>${GLYPH[a.g]}</g>`;
+  const num = a.n == null ? '' : a.g === 'flame'
+    ? `<text x="50" y="${a.n.length > 1 ? 63 : 64}" text-anchor="middle" font-size="${a.n.length > 1 ? 15 : 17}" font-weight="900" fill="${T.ink}" font-family="system-ui,sans-serif">${a.n}</text>`
+    : `<text x="50" y="74" text-anchor="middle" font-size="${a.n.length > 2 ? 12.5 : 14}" font-weight="900" fill="${T.ink}" font-family="system-ui,sans-serif">${a.n}</text>`;
+  return `<svg class="badge${locked ? ' locked' : ''}" viewBox="-2 0 104 106" role="img" aria-label="${esc(a.naziv)}">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${T.rim[0]}"/><stop offset=".55" stop-color="${T.rim[1]}"/>${a.tier === 'legenda' ? '<stop offset="1" stop-color="#ffd76a"/>' : `<stop offset="1" stop-color="${T.rim[0]}"/>`}</linearGradient></defs>
+    ${back}${shape}${crown}
+    <circle cx="50" cy="50" r="33" fill="${T.face}"/><circle cx="50" cy="50" r="33" fill="none" stroke="${T.ink}" stroke-opacity=".22" stroke-width="1.5"/>
+    <path d="M24 40a28 28 0 0 1 22-22" stroke="#fff" stroke-opacity="${a.tier === 'legenda' ? .25 : .7}" stroke-width="3" fill="none" stroke-linecap="round"/>
+    ${glyph}${num}</svg>`;
+}
+
+/* profil: razina, napredak, postignuća */
+function profileTopHtml() {
+  ensureGoalStart();
+  const pts = achPoints(), L = levelOf(pts), have = ACH.filter(a => db.ach?.[a.id]).length, gp = goalProgress();
+  const frac = L.to == null ? 1 : (pts - L.from) / (L.to - L.from), C = 2 * Math.PI * 27;
+  let h = `<div class="card lvl"><div class="ring2"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" fill="none" stroke="var(--surface2)" stroke-width="7"/>
+      <circle cx="32" cy="32" r="27" fill="none" stroke="var(--accent)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - frac)}"/></svg><b>${L.i + 1}</b></div>
+    <div class="t"><span>Razina ${L.i + 1}</span><strong>${L.naziv}</strong><small>${fmt(pts)} bodova${L.to == null ? ' · maksimum!' : ` · još ${fmt(L.to - pts)} do sljedeće`} · ${have}/${ACH.length} postignuća</small></div></div>`;
+  h += `<div class="card"><h2>Napredak prema cilju</h2>`;
+  if (gp) {
+    const loss = gp.goal < gp.start;
+    h += `<div class="gp"><div class="pct">${Math.round(gp.pct * 100)} %<small>${gp.pct >= 1 ? 'cilj ostvaren!' : `još ${fmt(gp.left, 1)} kg`}</small></div>
+      <div class="track"><i style="width:${gp.pct * 100}%"></i><em style="left:25%"></em><em style="left:50%"></em><em style="left:75%"></em></div>
+      <div class="row3"><span>start <b>${fmt(gp.start, 1)}</b></span><span>sad <b>${fmt(gp.now, 1)}</b></span><span>cilj <b>${fmt(gp.goal, 1)}</b> kg</span></div>
+      <p class="muted small" style="margin:8px 0 0">Računa se po trendu vage, pa dnevne oscilacije ne kvare napredak. ${loss ? '' : ''}</p></div>`;
+  } else {
+    h += `<p class="muted small" style="margin:0 0 10px">Postavi ciljnu težinu i prati put do nje – usput otključavaš postignuća na 25, 50, 75 i 100 %.</p>
+      <button class="btn sm" data-act="focusgoal">Postavi ciljnu težinu</button>`;
+  }
+  h += `</div><div class="card"><h2>Postignuća · ${have}/${ACH.length}</h2><div class="achgrid">`;
+  const c = achCtx();
+  for (const a of ACH) {
+    const on = !!db.ach?.[a.id]; let pr = null;
+    if (!on && a.p) { try { pr = a.p(c); } catch (e) {} }
+    h += `<button class="ach ${on ? '' : 'off'}" data-act="ach" data-id="${a.id}">${badgeSvg(a, !on)}${on ? '' : '<i class="lock">🔒</i>'}<span>${esc(a.naziv)}</span>
+      ${pr && pr[0] > 0 ? `<span class="mini"><i style="width:${Math.min(100, pr[0] / pr[1] * 100)}%"></i></span>` : ''}</button>`;
+  }
+  return h + `</div></div>`;
+}
+function achDetail(id) {
+  const a = ACH.find(x => x.id === id); if (!a) return;
+  const got = db.ach?.[a.id], T = TIERS[a.tier], c = achCtx();
+  let pr = null; if (!got && a.p) { try { pr = a.p(c); } catch (e) {} }
+  const hint = !got && a.hint ? a.hint(c) : null;
+  openSheet(`<div class="achd">${badgeSvg(a, !got)}
+    <span class="tierchip tier-${a.tier}">${T.naziv} · ${T.pts} bodova</span>
+    <h3>${esc(a.naziv)}</h3><p>${esc(a.opis)}</p>
+    ${got ? `<p><b>Otključano ${labelDate(got.d)}</b>${got.retro ? ' · iz ranijih podataka' : ''}</p>`
+          : pr ? `<div class="bar"><i style="width:${Math.min(100, pr[0] / pr[1] * 100)}%;background:var(--accent)"></i></div><p>${fmt(Math.min(pr[0], pr[1]))} / ${fmt(pr[1])}</p>`
+          : `<p>${hint ? esc(hint) : 'Još nije otključano.'}</p>`}
+    <div class="btns"><button class="btn" data-act="close">Zatvori</button></div></div>`);
+}
+
+/* animacija otključavanja */
+function confettiHtml(colors) {
+  let h = '';
+  for (let i = 0; i < 70; i++) {
+    const an = Math.random() * Math.PI * 2, dist = 140 + Math.random() * 260;
+    h += `<i class="cf" style="--c:${colors[i % colors.length]};--dx:${(Math.cos(an) * dist).toFixed(0)}px;--dy:${(Math.sin(an) * dist + 160).toFixed(0)}px;--r:${(Math.random() * 720 - 360).toFixed(0)}deg;--d:${(1.4 + Math.random() * 1.2).toFixed(2)}s;--w:${(.25 + Math.random() * .25).toFixed(2)}s;${Math.random() < .3 ? 'border-radius:50%;width:8px;height:8px;' : ''}"></i>`;
+  }
+  return h;
+}
+function showFx(item) {
+  const fx = $('#achFx'); fx.hidden = false;
+  if (item.retro) {
+    fx.innerHTML = `<div class="fx-back"></div><div class="fx-rays"></div>${confettiHtml(['#ffd76a', '#ff6b6b', '#6ccf8a', '#5aa6e6', '#fff'])}
+      <div class="fx-box"><div class="fx-kicker">Dobrodošao u CalQuest!</div>
+      <h3>Već imaš ${item.retro.length} ${item.retro.length === 1 ? 'postignuće' : item.retro.length < 5 ? 'postignuća' : 'postignuća'}</h3>
+      <p>Iz tvojih dosadašnjih unosa otključao si sljedeće – a čeka te još ${ACH.length - item.retro.length}.</p>
+      <div class="fx-mini">${item.retro.map((a, i) => badgeSvg(a, false).replace('<svg ', `<svg style="animation-delay:${(.2 + i * .08).toFixed(2)}s" `)).join('')}</div>
+      <div class="btns"><button class="btn ghost" data-act="fxclose">Kasnije</button><button class="btn" data-act="fxprofile">Pogledaj profil</button></div></div>`;
+  } else {
+    const a = item.a, T = TIERS[a.tier];
+    fx.innerHTML = `<div class="fx-back"></div><div class="fx-rays"></div>${confettiHtml([T.rim[0], T.rim[1], '#ffd76a', '#fff', 'var(--accent)'])}
+      <div class="fx-box"><div class="fx-kicker">Postignuće otključano!</div>
+      <div class="fx-badge">${badgeSvg(a, false)}</div>
+      <span class="tierchip tier-${a.tier}">${T.naziv} · +${T.pts} bodova</span>
+      <h3>${esc(a.naziv)}</h3><p>${esc(a.opis)}</p>
+      ${item.lvl ? `<div class="lvlup">⬆ Nova razina: ${esc(item.lvl)}</div>` : ''}
+      <div class="btns"><button class="btn" data-act="fxnext">${fxQueue.length ? `Super! (još ${fxQueue.length})` : 'Super!'}</button></div></div>`;
+  }
+  try { navigator.vibrate?.([40, 60, 40, 60, 90]); } catch (e) {}
+}
+function nextFx() { const it = fxQueue.shift(); if (it) showFx(it); else { $('#achFx').hidden = true; $('#achFx').innerHTML = ''; } }
 
 /* ---------- events ---------- */
 document.addEventListener('click', e => {
@@ -1462,13 +1743,18 @@ document.addEventListener('click', e => {
     }
     case 'showkey': { const k = $('#keyIn'); k.type = k.type === 'password' ? 'text' : 'password'; el.textContent = k.type === 'password' ? 'Prikaži' : 'Sakrij'; break; }
     case 'testkey': testKey(); break;
+    case 'ach': achDetail(id); break;
+    case 'fxnext': nextFx(); break;
+    case 'fxclose': fxQueue = []; nextFx(); break;
+    case 'fxprofile': fxQueue = []; nextFx(); tab = 'postavke'; render(); window.scrollTo(0, 0); break;
+    case 'focusgoal': { const g = $('#goalIn'); if (g) { g.scrollIntoView({behavior:'smooth', block:'center'}); setTimeout(() => g.focus(), 350); } break; }
     case 'skin': { const v = el.dataset.id || 'osnovni'; if (!/^[a-z0-9-]+$/.test(v)) break;
       db.settings.skin = v; save(); applySkin(v); renderSkins(); break; }
     case 'export': exportData(); break;
     case 'import': $('#impFile').click(); break;
     case 'wipe':
       if (confirm('Obrisati SVE unose, težine i obroke? Ovo se ne može poništiti.')) {
-        const key = db.settings.apiKey; db = loadDb(); db = {settings:{...db.settings, apiKey:key}, days:{}, weights:{}, meals:[]};
+        const key = db.settings.apiKey; db = loadDb(); db = {settings:{...db.settings, apiKey:key, goalWeight:'', goalStartW:'', goalStartDate:''}, days:{}, weights:{}, meals:[], ach:{}, stats:{}};
         save(); render(); toast('Podaci obrisani');
       }
       break;
@@ -1495,6 +1781,11 @@ document.addEventListener('change', e => {
   if (el.dataset.s) {
     const k = el.dataset.s;
     db.settings[k] = el.type === 'checkbox' ? el.checked : NUMKEYS.includes(k) ? (el.value === '' ? '' : +el.value) : el.value.trim();
+    if (k === 'goalWeight') {
+      const now = trendNow() ?? weightAt(todayKey());
+      Object.assign(db.settings, db.settings.goalWeight && now ? {goalStartW:r1(now), goalStartDate:todayKey()} : {goalStartW:'', goalStartDate:''});
+      save(); render(); return;
+    }
     save();
     if (tab === 'postavke') updateSumBox(); else render();
   }
@@ -1531,6 +1822,7 @@ window.addEventListener('pageshow', onResume);
 setInterval(() => { if (!document.hidden && checkDay() && !$('#sheet').classList.contains('open')) render(); }, 30000);
 
 render(); autosize();
+setTimeout(checkAch, 600);
 function syncThemeColor() {
   const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
   if (bg) document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.content = bg);

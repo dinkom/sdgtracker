@@ -1,5 +1,5 @@
-const CACHE = 'sdg-tracker-v22';
-const ASSETS = ['./', './index.html', './skinovi/skinovi.json', './skinovi/osnovni.css', './skinovi/jesen.css', './skinovi/bozic.css', './sdg-tracker.webmanifest', './sdg-icon-192.png', './sdg-icon-512.png', './sdg-icon-maskable-512.png'];
+const CACHE = 'calquest-v1';
+const ASSETS = ['./', './index.html', './skinovi/skinovi.json', './skinovi/osnovni.css', './skinovi/jesen.css', './skinovi/bozic.css', './calquest.webmanifest', './sdg-icon-192.png', './sdg-icon-512.png', './sdg-icon-maskable-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))));
