@@ -807,7 +807,7 @@ function chartSvg(ser) {
 /* meals */
 function mealsHtml() {
   if (!db.meals.length) {
-    return `<div class="card empty"><b>Nema spremljenih obroka</b>Kad potvrđuješ unos, označi „Spremi i kao obrok“. Spremljene obroke dodaješ jednim klikom, a Claude ih prepoznaje i kad ih spomeneš glasom („moj standardni doručak“).</div>`;
+    return `<div class="card empty"><b>Nema spremljenih obroka</b>Kad potvrđuješ unos, označi „Spremi i kao obrok“. Spremljene obroke dodaješ jednim klikom, a aplikacija ih prepoznaje i kad ih spomeneš glasom („moj standardni doručak“).</div>`;
   }
   const where = cur === todayKey() ? 'danas' : labelDate(cur);
   return db.meals.map(m => {
@@ -850,7 +850,7 @@ function settingsHtml() {
 
   <div class="card"><h2>Izgled</h2><div class="skins" id="skinList"></div></div>
 
-  <div class="card"><h2>Claude API</h2>
+  <div class="card"><h2>Obrada unosa (API)</h2>
     <div class="keyrow"><label class="f">API ključ<input data-s="apiKey" id="keyIn" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label>
     <button class="btn ghost sm" data-act="showkey" style="min-height:46px">Prikaži</button></div>
     <label class="f" style="margin-top:12px">Model za tekst i glas<select data-s="model">
@@ -862,14 +862,14 @@ function settingsHtml() {
     <p class="muted small" style="margin:-4px 0 12px">Ispravci stavki koriste model za tekst.</p>
     <label class="chk"><input type="checkbox" data-s="autoProcess"> Obradi automatski nakon diktiranja</label>
     <button class="btn ghost sm" data-act="testkey" id="testBtn">Testiraj ključ</button>
-    <p class="muted small" style="margin:10px 0 0">Ključ se čuva samo na ovom uređaju i šalje se isključivo Anthropicu.</p></div>
+    <p class="muted small" style="margin:10px 0 0">Ključ se čuva samo na ovom uređaju i koristi se isključivo za obradu tvojih unosa.</p></div>
 
   <div class="card"><h2>Podaci</h2>
     <p class="muted small" style="margin:0 0 12px">Sve je spremljeno samo u ovom pregledniku. Povremeno napravi sigurnosnu kopiju.</p>
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 2.4</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 2.5</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -1041,8 +1041,8 @@ async function callClaudeOnce(body, model) {
     else if (r.status === 401) err.message = 'API ključ nije ispravan.';
     else if (r.status === 404 || /model/i.test(m) && r.status === 400) err.message = `Model ${model} nije dostupan na tvom računu (${m}).`;
     else if (r.status === 429) err.message = 'Previše zahtjeva – pokušaj za minutu.';
-    else if (r.status === 529 || r.status === 503) err.message = 'Claude je trenutno preopterećen. Pokušaj ponovno.';
-    else if (/credit/i.test(m)) err.message = 'Na API računu nema kredita. Nadoplati u Claude Consoleu.';
+    else if (r.status === 529 || r.status === 503) err.message = 'Aplikacija je trenutno preopterećena. Pokušaj ponovno.';
+    else if (/credit/i.test(m)) err.message = 'Na API računu nema kredita. Nadoplati ga u konzoli API računa.';
     throw err;
   }
   return j;
@@ -1127,7 +1127,7 @@ async function askClaude(text, ph) {
         continue;
       }
       logBad('unos', j);
-      lastErr = new Error('Claude je vratio neispravan odgovor. Pokušaj ponovno.');
+      lastErr = new Error('Aplikacija nije uspjela obraditi unos. Pokušaj ponovno.');
     } catch (e) {
       if (!isTransient(e)) throw e;
       lastErr = e;
@@ -1360,7 +1360,7 @@ Izmjena: ${ask}`}]};
       if (!x && attempt < 3) await sleep(600 * attempt);
     }
 
-    if (!x) throw new Error('Claude je vratio neispravan odgovor. Pokušaj ponovno.');
+    if (!x) throw new Error('Aplikacija nije uspjela obraditi unos. Pokušaj ponovno.');
     const set = (id, val) => { const el = $(id); if (el && val != null && String(el.value) !== String(val)) { el.value = val; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } };
     if (kind === 'activity' && +x.met > 1 && +x.minute) x.kcal = Math.round((x.met - 1) * w * x.minute / 60);
     set('#eName', x.naziv); set('#eAmount', x.kolicina);
