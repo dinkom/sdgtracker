@@ -342,6 +342,8 @@ body.locked{overflow:hidden}
 @keyframes fxShine{from{background-position:120% 0}to{background-position:-120% 0}}
 @keyframes fxConf{0%{opacity:1;transform:translate(0,0) rotate(0)}85%{opacity:1}100%{opacity:0;transform:translate(var(--dx),var(--dy)) rotate(var(--r))}}
 @media (prefers-reduced-motion:reduce){#achFx *{animation-duration:.01s!important;animation-delay:0s!important}#achFx .fx-rays{animation:none}#achFx .cf{display:none}}
+.sumbox.todo{display:flex;align-items:center;justify-content:space-between;gap:10px;background:none;border:1.5px dashed var(--line);color:var(--muted)}
+.sumbox.todo .btn{flex:none}
 #toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translate(-50%,20px);z-index:30;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:14px;font-size:14px;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:all .25s;text-align:center}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 </style>
@@ -867,7 +869,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 2.2</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 2.3</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -901,7 +903,14 @@ function fillSettings() {
 function updateSumBox() {
   const box = $('#sumBox'); if (!box) return;
   const t = todayKey(), w = weightAt(t), b = bmr(w), tdee = baseTdee(t), tgt = target(t);
-  if (!b) { box.innerHTML = `<span class="muted">Upiši dob, visinu i težinu za izračun.</span>`; return; }
+  if (!b) {
+    const miss = [!S().age && 'dob', !S().height && 'visinu', !w && 'težinu'].filter(Boolean);
+    box.classList.add('todo');
+    box.innerHTML = `<span>ⓘ Za izračun dnevnog cilja upiši ${miss.join(', ').replace(/, ([^,]*)$/, ' i $1')} u Osobnim podacima.</span>
+      <button class="btn sm ghost" data-act="fillprofile">Upiši</button>`;
+    return;
+  }
+  box.classList.remove('todo');
   box.innerHTML = `<div><span>Bazalni metabolizam</span><b>${fmt(b)} kcal</b></div>
     <div><span>Dnevna potrošnja${S().useAdaptive && adaptive().ready ? ' (iz podataka)' : ''}</span><b>${fmt(tdee)} kcal</b></div>
     <div><span>Dnevni cilj</span><b>${fmt(tgt)} kcal</b></div>
@@ -1759,6 +1768,11 @@ document.addEventListener('click', e => {
     }
     case 'showkey': { const k = $('#keyIn'); k.type = k.type === 'password' ? 'text' : 'password'; el.textContent = k.type === 'password' ? 'Prikaži' : 'Sakrij'; break; }
     case 'testkey': testKey(); break;
+    case 'fillprofile': {
+      const el2 = !S().age ? $('[data-s="age"]') : !S().height ? $('[data-s="height"]') : $('#setW');
+      if (el2) { el2.scrollIntoView({behavior:'smooth', block:'center'}); setTimeout(() => el2.focus(), 350); }
+      break;
+    }
     case 'ach': achDetail(id); break;
     case 'fxnext': nextFx(); break;
     case 'fxclose': fxQueue = []; nextFx(); break;
