@@ -363,7 +363,7 @@ body.locked{overflow:hidden}
     <button class="mic" id="mic" aria-label="Diktiraj">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
     </button>
-    <textarea id="inp" rows="1" enterkeyhint="send" placeholder="Što si jeo ili radio?"></textarea>
+    <textarea id="inp" rows="1" enterkeyhint="send" placeholder="Unesi hranu/fizičku aktivnost"></textarea>
     <button class="cam" id="cam" aria-label="Fotografiraj obrok">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>
     </button>
@@ -491,7 +491,7 @@ function mealByTime(d = new Date()) {
 
 /* ---------- rendering ---------- */
 function render() {
-  inp.placeholder = G('Što si jeo ili radio?', 'Što si jela ili radila?');
+  inp.placeholder = 'Unesi hranu/fizičku aktivnost';
   renderHeader();
   const v = $('#view');
   v.innerHTML = tab === 'dan' ? dayHtml() : tab === 'pregled' ? overviewHtml() : tab === 'tezina' ? weightHtml() : tab === 'obroci' ? mealsHtml() : settingsHtml();
@@ -869,7 +869,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 2.3</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 2.4</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
