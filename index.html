@@ -426,6 +426,7 @@ function persist() {
 }
 function save() { persist(); queueAch(); }
 const S = () => db.settings;
+const G = (m, f) => S().sex === 'f' ? f : m;   // muški / ženski oblik
 
 let tab = 'dan', cur = todayKey(), pending = null, busy = false, wRange = 30, editKind = 'food';
 let ovMode = 'tjedan', ovRef = todayKey(), ovSel = null, todaySeen = todayKey();
@@ -488,6 +489,7 @@ function mealByTime(d = new Date()) {
 
 /* ---------- rendering ---------- */
 function render() {
+  inp.placeholder = G('Što si jeo ili radio?', 'Što si jela ili radila?');
   renderHeader();
   const v = $('#view');
   v.innerHTML = tab === 'dan' ? dayHtml() : tab === 'pregled' ? overviewHtml() : tab === 'tezina' ? weightHtml() : tab === 'obroci' ? mealsHtml() : settingsHtml();
@@ -546,7 +548,7 @@ function dayHtml() {
 
   const es = entriesOf(k);
   if (!es.length && !t.steps) {
-    h += `<div class="empty"><b>Još ništa za ovaj dan</b>Pritisni mikrofon i reci npr.<br>„za doručak tri jaja i kriška kruha“<br>ili „trčao sam 30 minuta lagano“.</div>`;
+    h += `<div class="empty"><b>Još ništa za ovaj dan</b>Pritisni mikrofon i reci npr.<br>„za doručak tri jaja i kriška kruha“<br>ili „${G('trčao', 'trčala')} sam 30 minuta lagano“.</div>`;
   } else {
     const groups = {};
     for (const e of es) {
@@ -653,7 +655,7 @@ function overviewHtml() {
       </div>
       ${shortW && o.wDelta != null ? `<p class="hint">Težina dnevno oscilira ±0,5–1 kg zbog vode i hrane, pa vaga pravi smjer pokaže tek nakon 2–3 tjedna.</p>` : ''}
       <details class="why"><summary>Što ovo znači?</summary>
-        <p><b>Bilanca</b> je razlika između onoga što si pojeo i onoga što si potrošio (bazalni metabolizam, svakodnevno kretanje i zabilježene aktivnosti). Minus znači deficit – tijelo troši zalihe; otprilike 7.700 kcal ≈ 1 kg.</p>
+        <p><b>Bilanca</b> je razlika između onoga što si ${G('pojeo', 'pojela')} i onoga što si ${G('potrošio', 'potrošila')} (bazalni metabolizam, svakodnevno kretanje i zabilježene aktivnosti). Minus znači deficit – tijelo troši zalihe; otprilike 7.700 kcal ≈ 1 kg.</p>
         <p><b>Plan</b> je deficit koji tvoj odabrani tempo predviđa za isti broj dana. <b>Status</b> pokazuje koliko se držiš dnevnog cilja: do ±100 kcal dnevno je „u planu“.</p>
         <p>Brojke su procjene – najviše vrijede kad se gledaju zajedno s trendom vage kroz nekoliko tjedana.</p>
       </details>
@@ -865,7 +867,7 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 2.1</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 2.2</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -973,7 +975,7 @@ KORACI
 
 OSTALO
 - Ako tekst ne sadrži ni hranu, ni aktivnost, ni korake, vrati praznu listu stavki i kratko objasni u polju napomena.
-- Napomene piši kratko, na hrvatskom.
+- Napomene piši kratko, na hrvatskom. ${S().sex === 'f' ? 'Korisnica je ženskog roda – kad joj se obraćaš, koristi ženski rod.' : 'Korisnik je muškog roda – kad mu se obraćaš, koristi muški rod.'}
 
 KONTEKST
 - Datum unosa: ${dateKey}${dateKey === todayKey() ? `, trenutno vrijeme ${pad(now.getHours())}:${pad(now.getMinutes())}` : ' (naknadni unos za raniji dan)'}
@@ -1481,17 +1483,17 @@ const TIERS = {
   zlato:{naziv:'Zlato', pts:50, rim:['#fff3a6', '#c08a0a'], face:'#fff6d2', ink:'#7a5600'},
   legenda:{naziv:'Legenda', pts:100, rim:['#ff7b8e', '#8e0d2c'], face:'#2b1022', ink:'#ffd76a'},
 };
-const LEVELS = [[0, 'Početnik'], [40, 'Rekreativac'], [120, 'Redoviti polaznik'], [250, 'Kružni ratnik'], [400, 'Šampion'], [605, 'Legenda kruga']];
+const LEVELS = [[0, 'Početnik', 'Početnica'], [40, 'Rekreativac', 'Rekreativka'], [120, 'Redoviti polaznik', 'Redovita polaznica'], [250, 'Kružni ratnik', 'Kružna ratnica'], [400, 'Šampion', 'Šampionka'], [605, 'Legenda kruga', 'Legenda kruga']];
 const goalAch = (id, tier, naziv, pct, opis) => ({id, tier, naziv, opis, g:'peak', n:pct + '%',
   ok:c => c.gp && c.gp.pct >= pct / 100 - 1e-9, p:c => c.gp ? [Math.round(c.gp.pct * 100), pct] : null,
   hint:c => c.gp ? null : 'Postavi ciljnu težinu u Profilu → Cilj.'});
 const ACH = [
   {id:'prvi_unos', tier:'bronca', naziv:'Prvi zalogaj', opis:'Zabilježi svoj prvi obrok.', g:'plate', ok:c => c.foodDays >= 1},
-  {id:'glas', tier:'bronca', naziv:'Rekao i zapisao', opis:'Spremi prvi unos izgovoren glasom.', g:'mic', ok:c => (db.stats.voice || 0) >= 1},
+  {id:'glas', tier:'bronca', get naziv() { return G('Rekao i zapisao', 'Rekla i zapisala'); }, opis:'Spremi prvi unos izgovoren glasom.', g:'mic', ok:c => (db.stats.voice || 0) >= 1},
   {id:'foto', tier:'bronca', naziv:'Kamera, hrana!', opis:'Spremi prvi obrok procijenjen s fotografije.', g:'camera', ok:c => (db.stats.photo || 0) >= 1},
   {id:'vaga1', tier:'bronca', naziv:'Na vagu', opis:'Zabilježi prvo vaganje.', g:'scale', ok:c => c.weighs >= 1},
   {id:'trening1', tier:'bronca', naziv:'Prvi krug', opis:'Zabilježi prvi trening ili aktivnost.', g:'dumbbell', ok:c => c.acts >= 1},
-  {id:'obrok1', tier:'bronca', naziv:'Kuhar iz navike', opis:'Spremi svoj prvi obrok za brzi unos.', g:'bookmark', ok:c => db.meals.length >= 1},
+  {id:'obrok1', tier:'bronca', get naziv() { return G('Kuhar iz navike', 'Kuharica iz navike'); }, opis:'Spremi svoj prvi obrok za brzi unos.', g:'bookmark', ok:c => db.meals.length >= 1},
   {id:'plan1', tier:'bronca', naziv:'Pogodak', opis:'Završi jedan dan unutar plana.', g:'target', ok:c => c.planDays >= 1},
   {id:'niz3', tier:'bronca', naziv:'Zagrijavanje', opis:'Bilježi prehranu 3 dana zaredom.', g:'flame', n:'3', ok:c => c.best >= 3, p:c => [c.best, 3]},
   {id:'pad', tier:'srebro', naziv:'Prvi pad', opis:'Vaga pokaže manje nego prošli put.', g:'down', ok:c => c.drop},
@@ -1547,7 +1549,7 @@ function achCtx() {
     acts:dayKeys.reduce((sm, k) => sm + entriesOf(k).filter(e => e.kind === 'activity').length, 0), gp:goalProgress()};
 }
 const achPoints = () => ACH.filter(a => db.ach?.[a.id]).reduce((sm, a) => sm + TIERS[a.tier].pts, 0);
-const levelOf = pts => { let i = 0; LEVELS.forEach((l, k) => { if (pts >= l[0]) i = k; }); return {i, naziv:LEVELS[i][1], from:LEVELS[i][0], to:LEVELS[i + 1]?.[0] ?? null}; };
+const levelOf = pts => { let i = 0; LEVELS.forEach((l, k) => { if (pts >= l[0]) i = k; }); return {i, naziv:G(LEVELS[i][1], LEVELS[i][2]), from:LEVELS[i][0], to:LEVELS[i + 1]?.[0] ?? null}; };
 
 let achTimer = null, fxQueue = [];
 function queueAch() { clearTimeout(achTimer); achTimer = setTimeout(checkAch, 450); }
@@ -1662,9 +1664,9 @@ function showFx(item) {
   const fx = $('#achFx'); fx.hidden = false;
   if (item.retro) {
     fx.innerHTML = `<div class="fx-back"></div><div class="fx-rays"></div>${confettiHtml(['#ffd76a', '#ff6b6b', '#6ccf8a', '#5aa6e6', '#fff'])}
-      <div class="fx-box"><div class="fx-kicker">Dobrodošao u CalQuest!</div>
+      <div class="fx-box"><div class="fx-kicker">${G('Dobrodošao', 'Dobrodošla')} u CalQuest!</div>
       <h3>Već imaš ${item.retro.length} ${item.retro.length === 1 ? 'postignuće' : item.retro.length < 5 ? 'postignuća' : 'postignuća'}</h3>
-      <p>Iz tvojih dosadašnjih unosa otključao si sljedeće – a čeka te još ${ACH.length - item.retro.length}.</p>
+      <p>Iz tvojih dosadašnjih unosa ${G('otključao', 'otključala')} si sljedeće – a čeka te još ${ACH.length - item.retro.length}.</p>
       <div class="fx-mini">${item.retro.map((a, i) => badgeSvg(a, false).replace('<svg ', `<svg style="animation-delay:${(.2 + i * .08).toFixed(2)}s" `)).join('')}</div>
       <div class="btns"><button class="btn ghost" data-act="fxclose">Kasnije</button><button class="btn" data-act="fxprofile">Pogledaj profil</button></div></div>`;
   } else {
