@@ -346,6 +346,8 @@ body.locked{overflow:hidden}
 @media (prefers-reduced-motion:reduce){#achFx *{animation-duration:.01s!important;animation-delay:0s!important}#achFx .fx-rays{animation:none}#achFx .cf{display:none}}
 .sumbox.todo{display:flex;align-items:center;justify-content:space-between;gap:10px;background:none;border:1.5px dashed var(--line);color:var(--muted)}
 .sumbox.todo .btn{flex:none}
+.diag{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--muted)}
+.diag .btn{flex:none}
 #toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translate(-50%,20px);z-index:30;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:14px;font-size:14px;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:all .25s;text-align:center}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 </style>
@@ -870,8 +872,11 @@ function settingsHtml() {
     <p class="muted small" style="margin:0 0 12px">Sve je spremljeno samo u ovom pregledniku. Povremeno napravi sigurnosnu kopiju.</p>
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
-    <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 2.6</p>`;
+    <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button>
+    ${(() => { let b = null; try { b = JSON.parse(localStorage.getItem('sdg-last-bad')); } catch (e) {} if (!b) return '';
+      return `<div class="diag"><span>Zadnja neuspjela obrada: ${esc(new Date(b.at).toLocaleString('hr-HR'))}</span>
+        <button class="btn sm ghost" data-act="diagcopy">Kopiraj za podršku</button></div>`; })()}</div>
+  <p class="muted small" style="text-align:center">SDG CalQuest 2.9</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -974,6 +979,7 @@ FOTOGRAFIJA
 
 AKTIVNOST
 - Za SVAKU aktivnost obavezno navedi minute (ukupno aktivno vrijeme) i met (MET vrijednost). Nikad ne vraćaj aktivnost bez njih.
+- Trening s popisom vježbi (npr. „trening snage 45 min: bench, veslanje, zgibovi…“) zapiši kao JEDNU stavku aktivnosti s ukupnim trajanjem; vježbe možeš kratko navesti u polju kolicina. RPE 8–10 = viši intenzitet (MET 5–6), RPE 6–7 = umjereno (MET 3,5–5).
 - Runde i serije pretvori u minute: "4 runde po 5 minuta" = 20 minuta. Ako je spomenut i odmor između rundi, ne ubrajaj ga.
 - MET vrijednosti prema Compendium of Physical Activities, na primjer: trening snage s utezima 3,5–6; jiu-jitsu, judo, hrvanje, kickboxing, krav maga – sparing ili rolanje 10, drilovi i tehnika 5–6; trčanje lagano 8, umjereno 10; hodanje 3–4; bicikl umjereno 7–8.
 - kcal izračunaj kao NETO potrošnju: (MET − 1) × tjelesna masa × minute / 60. Bazalni metabolizam je već uračunat drugdje.
@@ -1089,6 +1095,21 @@ function normalizeEntry(out) {
   if ((st == null || (Array.isArray(st) && !st.length)) && looksItem(out)) {
     const {stavke, items, stavka, koraci, napomena, ...item} = out; st = [item];
   }
+  // ako je popis i dalje prazan, potraži stavke bilo gdje u odgovoru (drugi ključevi, ugniježđeno)
+  if (st == null || (Array.isArray(st) && !st.length)) {
+    const found = [], seen = new Set();
+    const walk = (v, depth) => {
+      if (!v || depth > 4 || seen.has(v)) return;
+      if (typeof v === 'string') { const pv = parseLoose(v); if (pv && typeof pv === 'object') walk(pv, depth + 1); return; }
+      if (typeof v !== 'object') return;
+      seen.add(v);
+      if (Array.isArray(v)) { v.forEach(x => walk(x, depth + 1)); return; }
+      if (v !== out && looksItem(v)) { found.push(v); return; }
+      for (const [k, x] of Object.entries(v)) if (k !== 'napomena') walk(x, depth + 1);
+    };
+    walk(out, 0);
+    if (found.length) st = found;
+  }
   if (st == null && (out.koraci != null || out.napomena)) st = [];
   if (!Array.isArray(st)) return null;
   st = st.map(parseLoose).filter(x => x && typeof x === 'object' && (x.naziv || x.kcal != null || x.minute != null || x.met != null || x.grami != null));
@@ -1103,7 +1124,7 @@ function normalizeEntry(out) {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const isTransient = e => /preopterećen|predugo|Nema veze|Greška 5\d\d|Previše zahtjeva/.test(e.message);
 function logBad(kind, data) {
-  try { localStorage.setItem('sdg-last-bad', JSON.stringify({kind, at:new Date().toISOString(), data:JSON.stringify(data).slice(0, 4000)})); } catch (e) {}
+  try { localStorage.setItem('sdg-last-bad', JSON.stringify({kind, at:new Date().toISOString(), data:JSON.stringify(data).slice(0, 12000)})); } catch (e) {}
   console.warn('SDG: neispravan odgovor', kind, data);
 }
 async function askClaude(text, ph) {
@@ -1113,7 +1134,7 @@ async function askClaude(text, ph) {
   const model = ph ? (S().photoModel || S().model) : S().model;
   const body = {max_tokens:4000, system:systemPrompt(w, cur), tools:[TOOL],
     tool_choice:{type:'tool', name:'zapisi_unos'}, messages:[{role:'user', content}]};
-  let lastErr;
+  let lastErr, invalid = 0;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const j = await callClaude(body, model);
@@ -1123,18 +1144,27 @@ async function askClaude(text, ph) {
       const suspicious = out && !out.stavke.length && out.koraci == null && attempt === 1 &&
         /\d|\bMET\b|kcal/i.test(nap) && !/ne sadrži|ne sadrzi|nema hran|nije prepozn|nisam prepozn/i.test(nap);
       if (out && !suspicious) return {...out, _model:j.model || model};
-      if (suspicious) {
-        logBad('prazno', j);
-        if (!body.system.includes('PONOVLJENI UPIT')) body.system += '\n\nPONOVLJENI UPIT: prethodni odgovor imao je praznu listu stavke iako je unos opisivao hranu ili aktivnost. Svaku namirnicu i aktivnost OBAVEZNO stavi u listu stavke (za aktivnost s minute i met).';
-        continue;
-      }
-      logBad('unos', j);
+      logBad(suspicious ? 'prazno' : 'unos', {input:text, photo:!!ph, model, response:j});
+      if (j.stop_reason === 'max_tokens') body.max_tokens = Math.min(16000, body.max_tokens * 2);   // odgovor je odrezan
+      if (!body.system.includes('PONOVLJENI UPIT')) body.system += '\n\nPONOVLJENI UPIT: prethodni odgovor nije bio upotrebljiv. Pozovi alat zapisi_unos s listom stavke; svaka stavka je objekt s poljima vrsta, naziv, kcal (za aktivnost obavezno minute i met). Više vježbi jednog treninga zapiši kao JEDNU stavku aktivnosti s ukupnim trajanjem.';
+      invalid++;
       lastErr = new Error('Aplikacija nije uspjela obraditi unos. Pokušaj ponovno.');
     } catch (e) {
       if (!isTransient(e)) throw e;
       lastErr = e;
     }
-    if (attempt < 3) await sleep(600 * attempt);
+    if (attempt < 3) await sleep(500 * attempt);
+  }
+  // rezervni put: bez alata, traži čisti JSON tekst
+  if (invalid) {
+    try {
+      const jb = {max_tokens:Math.max(body.max_tokens, 6000), messages:body.messages,
+        system:body.system + '\n\nOVAJ PUT NEMA ALATA. Odgovori ISKLJUČIVO jednim JSON objektom, bez ikakvog drugog teksta, oblika: {"stavke":[{"vrsta":"hrana|aktivnost","naziv":"...","kolicina":"...","grami":0,"jedinica":"g","minute":0,"met":0,"kcal":0,"proteini":0,"ugljikohidrati":0,"masti":0,"obrok":"ručak","sigurnost":"srednja"}],"koraci":null,"napomena":"..."}'};
+      const j = await callClaude(jb, model);
+      const out = normalizeEntry(toolResult(j, null));
+      if (out && (out.stavke.length || out.koraci != null)) return {...out, _model:j.model || model};
+      logBad('json', {input:text, photo:!!ph, model, response:j});
+    } catch (e) { if (!isTransient(e)) throw e; lastErr = e; }
   }
   throw lastErr;
 }
@@ -1328,7 +1358,22 @@ function onMealInput(el) {
   const row = el.closest('.mi'); if (!row) return;
   const it = mealDraft.items[+row.dataset.i], f = el.dataset.mf;
   if (f === 'name' || f === 'amount' || f === 'unit') it[f] = el.value;
-  else { const v = parseFloat(el.value.replace(',', '.')); it[f] = isNaN(v) ? (f === 'grams' ? null : 0) : v; }
+  else {
+    const v = parseFloat(el.value.replace(',', '.'));
+    if (!it._a) it._a = {q:it.grams, kcal:+it.kcal || 0, p:+it.p || 0, c:+it.c || 0, f:+it.f || 0};
+    if (f === 'grams') {
+      it.grams = isNaN(v) ? null : v;
+      const a = it._a;
+      if (!isNaN(v) && a.q) {
+        const k = v / a.q;
+        it.kcal = Math.round(a.kcal * k); it.p = r1(a.p * k); it.c = r1(a.c * k); it.f = r1(a.f * k);
+        for (const key of ['kcal', 'p', 'c', 'f']) row.querySelector(`[data-mf="${key}"]`).value = it[key];
+      } else if (!isNaN(v) && !a.q) a.q = v;
+    } else {
+      it[f] = isNaN(v) ? 0 : v;
+      it._a = {q:it.grams, kcal:+it.kcal || 0, p:+it.p || 0, c:+it.c || 0, f:+it.f || 0};
+    }
+  }
   row.querySelector('.mi-calc').innerHTML = miCalcHtml(it);
   const total = mealDraft.items.reduce((a, i) => a + (+i.kcal || 0), 0), pt = mealDraft.items.reduce((a, i) => a + (+i.p || 0), 0);
   $('#mTotal').innerHTML = `<span>Ukupno</span><span>${fmt(total)} kcal · P ${fmt(r1(pt))} g</span>`;
@@ -1384,10 +1429,38 @@ Izmjena: ${ask}`}]};
     set('#eQ', kind === 'food' ? (x.grami != null ? Math.round(x.grami) : null) : (x.minute != null ? Math.round(x.minute) : null));
     if (kind === 'food') { set('#eUnit', x.jedinica); set('#eP', r1(x.proteini)); set('#eC', r1(x.ugljikohidrati)); set('#eF', r1(x.masti)); }
     set('#eKcal', Math.round(+x.kcal || 0));
+    anchorEntry();
     $('#eAsk').value = '';
     toast((x.objasnjenje ? x.objasnjenje + ' · ' : '') + 'provjeri i spremi', 3500);
   } catch (e) { toast(e.message, 4500); }
   finally { btn.disabled = false; btn.textContent = 'Primijeni'; }
+}
+
+/* razmjerno preračunavanje u obrascu stavke */
+let eAnchor = null;
+const numOf = id => { const v = parseFloat(($(id)?.value || '').replace(',', '.')); return isNaN(v) ? null : v; };
+function anchorEntry() {
+  eAnchor = {q:numOf('#eQ'), kcal:numOf('#eKcal'), p:numOf('#eP'), c:numOf('#eC'), f:numOf('#eF')};
+  updateECalc();
+}
+function updateECalc() {
+  const box = $('#eCalc'); if (!box) return;
+  const it = {kcal:numOf('#eKcal'), p:numOf('#eP'), c:numOf('#eC'), f:numOf('#eF')};
+  box.innerHTML = miCalcHtml(it).replace('data-act="miuse"', 'data-act="euse"');
+}
+function onEntryInput(el) {
+  if (!eAnchor) anchorEntry();
+  if (el.id === 'eQ') {
+    const q = numOf('#eQ'), a = eAnchor;
+    if (q != null && a.q) {
+      const k = q / a.q;
+      if (a.kcal != null) $('#eKcal').value = Math.round(a.kcal * k);
+      for (const [id, key] of [['#eP', 'p'], ['#eC', 'c'], ['#eF', 'f']]) if ($(id) && a[key] != null) $(id).value = r1(a[key] * k);
+    } else if (q != null && !a.q) eAnchor.q = q;   // prvi put upisana količina postaje referenca
+  } else if (el.id === 'eKcal' || el.id === 'eP' || el.id === 'eC' || el.id === 'eF') {
+    eAnchor = {q:numOf('#eQ'), kcal:numOf('#eKcal'), p:numOf('#eP'), c:numOf('#eC'), f:numOf('#eF')};
+  }
+  updateECalc();
 }
 
 /* manual / edit */
@@ -1408,7 +1481,9 @@ function entryForm(e) {
     ${food ? `<div class="grid3"><label class="f">Proteini g<input id="eP" type="number" inputmode="decimal" value="${e.p ?? ''}"></label>
       <label class="f">UH g<input id="eC" type="number" inputmode="decimal" value="${e.c ?? ''}"></label>
       <label class="f">Masti g<input id="eF" type="number" inputmode="decimal" value="${e.f ?? ''}"></label></div>
+      <div class="mi-calc" id="eCalc"></div>
       <label class="f">Obrok<select id="eMeal">${MEALS.map(m => `<option ${m === e.meal ? 'selected' : ''}>${m}</option>`).join('')}</select></label>` : ''}
+    <p class="muted small" id="eHint" style="margin:-4px 0 8px">${food ? 'Promjena količine razmjerno preračuna kcal i makronutrijente.' : 'Promjena trajanja razmjerno preračuna kcal.'}</p>
     <div class="btns">${isNew ? `<button class="btn ghost" data-act="close">Odustani</button>` : `<button class="btn danger" data-act="edel" data-id="${e.id}">Obriši</button>`}
       <button class="btn" data-act="esave" data-id="${isNew ? '' : e.id}" data-kind="${kind}">Spremi</button></div>`;
 }
@@ -1709,6 +1784,12 @@ function showFx(item) {
 }
 function nextFx() { const it = fxQueue.shift(); if (it) showFx(it); else { $('#achFx').hidden = true; $('#achFx').innerHTML = ''; } }
 
+function weightPlausible(v) {
+  const tr = trendNow();
+  if (tr == null || Math.abs(v - tr) <= 5) return true;
+  return confirm(`Upisano ${fmt(v, 1)} kg, a tvoj trend je ${fmt(tr, 1)} kg (razlika ${fmt(Math.abs(v - tr), 1)} kg). Jesi li siguran da je to točno?`);
+}
+
 /* ---------- events ---------- */
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act],[data-tab]');
@@ -1739,16 +1820,18 @@ document.addEventListener('click', e => {
       (db.days[cur] ||= {entries:[]}).steps = v; save(); closeSheet(); render(); break; }
     case 'stdel': if (db.days[cur]) delete db.days[cur].steps; save(); closeSheet(); render(); break;
     case 'confirm': saveConfirm(); break;
-    case 'manual': editKind = 'food'; openSheet(entryForm(null)); break;
-    case 'kind': editKind = el.dataset.k; openSheet(entryForm(null)); break;
-    case 'edit': { const en = entriesOf(cur).find(x => x.id === id); if (en) openSheet(entryForm(en)); break; }
+    case 'manual': editKind = 'food'; openSheet(entryForm(null)); anchorEntry(); break;
+    case 'kind': editKind = el.dataset.k; openSheet(entryForm(null)); anchorEntry(); break;
+    case 'edit': { const en = entriesOf(cur).find(x => x.id === id); if (en) { openSheet(entryForm(en)); anchorEntry(); } break; }
     case 'esave': saveEntry(id, el.dataset.kind); break;
+    case 'euse': { const it = {p:numOf('#eP'), c:numOf('#eC'), f:numOf('#eF')}; $('#eKcal').value = macroKcal(it); anchorEntry(); break; }
     case 'eask': aiEdit($('[data-act="esave"]').dataset.kind); break;
     case 'emic': dictate($('#eAsk'), el, () => { if (S().autoProcess) aiEdit($('[data-act="esave"]').dataset.kind); }); break;
     case 'edel': { const d = db.days[cur]; if (d) d.entries = d.entries.filter(x => x.id !== id); save(); closeSheet(); render(); break; }
     case 'wsave': {
       const v = parseFloat(($('#wIn').value || '').replace(',', '.')), k = $('#wDate').value || todayKey();
       if (!(v > 25 && v < 350)) { toast('Upiši ispravnu težinu'); break; }
+      if (!weightPlausible(v)) break;
       db.weights[k] = r1(v); save(); render(); toast('Težina spremljena'); break;
     }
     case 'wdel': delete db.weights[el.dataset.k]; save(); render(); break;
@@ -1770,7 +1853,7 @@ document.addEventListener('click', e => {
     case 'mealsave': {
       const d = mealDraft; d.name = d.name.trim() || 'Obrok';
       const kept = d.items.filter(i => (i.name || '').trim() || +i.kcal);
-      d.items = d.items.filter(i => (i.name || '').trim() || +i.kcal).map(({_src, ...i}) => ({...i, name:(i.name || '').trim() || 'Namirnica',
+      d.items = d.items.filter(i => (i.name || '').trim() || +i.kcal).map(({_src, _a, ...i}) => ({...i, name:(i.name || '').trim() || 'Namirnica',
         kcal:Math.round(+i.kcal || 0), p:r1(i.p), c:r1(i.c), f:r1(i.f), grams:i.grams ? Math.round(i.grams) : null, unit:i.unit === 'ml' ? 'ml' : 'g'}));
       if (!d.items.length) { toast('Obrok treba barem jednu namirnicu'); break; }
       const ix = db.meals.findIndex(x => x.id === d.id); if (ix >= 0) db.meals[ix] = d;
@@ -1785,6 +1868,13 @@ document.addEventListener('click', e => {
     }
     case 'showkey': { const k = $('#keyIn'); k.type = k.type === 'password' ? 'text' : 'password'; el.textContent = k.type === 'password' ? 'Prikaži' : 'Sakrij'; break; }
     case 'testkey': testKey(); break;
+    case 'diagcopy': {
+      const raw = localStorage.getItem('sdg-last-bad') || '';
+      (navigator.clipboard?.writeText(raw) || Promise.reject()).then(() => toast('Kopirano – zalijepi u poruku'), () => {
+        openSheet(`<h3>Dijagnostika</h3><textarea class="inp" style="height:50vh;font-size:12px" readonly>${esc(raw)}</textarea><div class="btns"><button class="btn" data-act="close">Zatvori</button></div>`);
+      });
+      break;
+    }
     case 'fillprofile': {
       const el2 = !S().age ? $('[data-s="age"]') : !S().height ? $('[data-s="height"]') : $('#setW');
       if (el2) { el2.scrollIntoView({behavior:'smooth', block:'center'}); setTimeout(() => el2.focus(), 350); }
@@ -1813,6 +1903,7 @@ document.addEventListener('input', e => {
     $('#cStepsK').textContent = '+' + fmt(stepsKcal(v, cur)) + ' kcal'; return;
   }
   if (mealDraft && (e.target.id === 'mName' || e.target.closest('#sheet .mi'))) { onMealInput(e.target); return; }
+  if (['eQ', 'eKcal', 'eP', 'eC', 'eF'].includes(e.target.id)) { onEntryInput(e.target); return; }
   if (e.target.closest('#sheet .ci')) onConfirmInput(e.target);
   if (e.target.id === 'cSaveName') return;
 });
@@ -1822,7 +1913,7 @@ document.addEventListener('change', e => {
   if (el.id === 'impFile') { if (el.files[0]) importData(el.files[0]); el.value = ''; return; }
   if (el.id === 'setW') {
     const v = parseFloat(el.value.replace(',', '.'));
-    if (v > 25 && v < 350) { db.weights[todayKey()] = r1(v); save(); updateSumBox(); }
+    if (v > 25 && v < 350) { if (!weightPlausible(v)) { el.value = db.weights[todayKey()] ?? ''; return; } db.weights[todayKey()] = r1(v); save(); updateSumBox(); }
     return;
   }
   if (el.dataset.s) {
