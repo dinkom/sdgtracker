@@ -52,3 +52,13 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   ('text_model',    'claude-haiku-5-5'),
   ('photo_model',   'claude-sonnet-5-5'),
   ('daily_limit',   '40');
+
+-- šifrirane sigurnosne kopije (server ih ne može pročitati – ključ je samo kod korisnika)
+CREATE TABLE IF NOT EXISTS backups (
+  email        TEXT PRIMARY KEY,
+  iv           TEXT NOT NULL,
+  data         TEXT NOT NULL,            -- AES-GCM šifrat (base64)
+  size         INTEGER NOT NULL,
+  updated_at   TEXT NOT NULL,
+  key_mail_at  INTEGER NOT NULL DEFAULT 0
+);

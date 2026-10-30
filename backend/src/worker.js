@@ -1,6 +1,7 @@
 // SDG CalQuest – server (Cloudflare Worker)
 // Prijava e-mailom (kod), jedan uređaj po korisniku, posrednik prema Claude API-ju s ključem na serveru,
-// dnevni limiti i bilježenje potrošnje. Podaci o prehrani i težini se NE spremaju – samo prolaze prema Claudeu.
+// dnevni limiti i bilježenje potrošnje. Podaci o prehrani i težini se NE spremaju čitljivo – samo prolaze prema Claudeu,
+// a sigurnosna kopija stiže već šifrirana na uređaju (ključ server nikad ne sprema).
 import ADMIN_HTML from './admin.html';
 
 // Cijene po milijunu tokena (USD) – za procjenu troška u admin sučelju. Provjeri u Claude Consoleu i po potrebi ažuriraj.
@@ -15,6 +16,8 @@ const CODE_TTL_MS = 10 * 60 * 1000;
 const CODE_RESEND_MS = 60 * 1000;
 const CODES_PER_HOUR = 5;
 const MAX_ATTEMPTS = 5;
+const MAX_BACKUP = 1800000;          // D1: najveća vrijednost ~2 MB
+const KEY_MAIL_EVERY_MS = 5 * 60 * 1000;
 
 export default {
   async fetch(req, env, ctx) {
@@ -34,6 +37,10 @@ export default {
       if (path === '/auth/logout' && req.method === 'POST') return withCors(await authLogout(req, env), h);
       if (path === '/me' && req.method === 'GET') return withCors(await me(req, env), h);
       if (path === '/claude' && req.method === 'POST') return withCors(await proxyClaude(req, env, ctx), h);
+      if (path === '/backup' && req.method === 'GET') return withCors(await backupGet(req, env, false), h);
+      if (path === '/backup/info' && req.method === 'GET') return withCors(await backupGet(req, env, true), h);
+      if (path === '/backup' && req.method === 'POST') return withCors(await backupPut(req, env), h);
+      if (path === '/backup/key-mail' && req.method === 'POST') return withCors(await backupKeyMail(req, env), h);
       if (path === '/') return new Response('SDG CalQuest API radi.', {headers: {'content-type': 'text/plain; charset=utf-8'}});
       return withCors(json({error: 'not_found'}, 404), h);
     } catch (e) {
@@ -249,6 +256,53 @@ async function proxyClaude(req, env, ctx) {
   return json(data);
 }
 
+/* ================= šifrirana sigurnosna kopija ================= */
+async function backupGet(req, env, infoOnly) {
+  const a = await authed(req, env); if (a.res) return a.res;
+  const row = await env.DB.prepare(`SELECT ${infoOnly ? '' : 'iv, data, '}size, updated_at FROM backups WHERE email = ?`).bind(a.user.email).first();
+  if (!row) return json({error: 'none'}, 404);
+  return json(row);
+}
+async function backupPut(req, env) {
+  const a = await authed(req, env); if (a.res) return a.res;
+  let b; try { b = await readJson(req); } catch (e) { return json({error: 'too_large', message: 'Kopija je prevelika.'}, 413); }
+  const iv = String(b.iv || ''), data = String(b.data || '');
+  if (!/^[A-Za-z0-9+/=]{12,40}$/.test(iv) || !/^[A-Za-z0-9+/=]+$/.test(data)) return json({error: 'invalid'}, 400);
+  if (data.length > MAX_BACKUP) return json({error: 'too_large', message: 'Kopija je prevelika.'}, 413);
+  const at = nowIso();
+  await env.DB.prepare(`INSERT INTO backups (email, iv, data, size, updated_at) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(email) DO UPDATE SET iv = excluded.iv, data = excluded.data, size = excluded.size, updated_at = excluded.updated_at`)
+    .bind(a.user.email, iv, data, data.length, at).run();
+  return json({ok: true, updated_at: at});
+}
+// Ključ šalje uređaj; server ga samo proslijedi e-mailom i NE sprema.
+async function backupKeyMail(req, env) {
+  const a = await authed(req, env); if (a.res) return a.res;
+  const {key} = await readJson(req);
+  if (!/^[0-9A-Z]{4}(-[0-9A-Z]{4}){4}$/.test(String(key || ''))) return json({error: 'invalid'}, 400);
+  const row = await env.DB.prepare('SELECT key_mail_at FROM backups WHERE email = ?').bind(a.user.email).first();
+  if (row && Date.now() - row.key_mail_at < KEY_MAIL_EVERY_MS) return json({error: 'wait', message: 'Ključ je upravo poslan. Pokušaj ponovno za nekoliko minuta.'}, 429);
+  if (row) await env.DB.prepare('UPDATE backups SET key_mail_at = ? WHERE email = ?').bind(Date.now(), a.user.email).run();
+  if (env.DEV_MODE === '1') return json({ok: true, dev: true});
+  const name = a.user.name ? a.user.name.split(' ')[0] : '';
+  const html = `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:440px;margin:0 auto;padding:24px;color:#1c1a17">
+    <p style="font-size:16px">${name ? 'Bok ' + name + ',' : 'Bok,'}</p>
+    <p style="font-size:16px">ovo je tvoj <b>ključ za sigurnosnu kopiju</b> u SDG CalQuestu:</p>
+    <p style="font-size:24px;font-weight:800;letter-spacing:2px;background:#f5f2ec;border-radius:12px;padding:16px;text-align:center;font-family:ui-monospace,Menlo,monospace">${key}</p>
+    <p style="font-size:14px;color:#716b61"><b>Sačuvaj ovaj e-mail.</b> Ako promijeniš ili izgubiš mobitel, nakon prijave na novom uređaju upiši ovaj ključ i svi tvoji podaci (unosi, težina, obroci, postignuća) vratit će se.</p>
+    <p style="font-size:14px;color:#716b61">Kopija na serveru je šifrirana ovim ključem i bez njega je nitko ne može pročitati – ni trener, ni mi. Ključ se ne sprema na server.</p>
+    <p style="font-size:14px;color:#716b61">SDG Gym</p></div>`;
+  const r = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {'api-key': env.BREVO_API_KEY, 'content-type': 'application/json', 'accept': 'application/json'},
+    body: JSON.stringify({sender: {name: env.MAIL_FROM_NAME || 'SDG CalQuest', email: env.MAIL_FROM}, to: [{email: a.user.email}],
+      subject: 'Ključ za sigurnosnu kopiju – SDG CalQuest', htmlContent: html,
+      textContent: `Tvoj ključ za sigurnosnu kopiju u SDG CalQuestu: ${key}\n\nSačuvaj ovaj e-mail – trebat će ti za vraćanje podataka na novom mobitelu.`}),
+  });
+  if (!r.ok) { console.error('Brevo', r.status, await r.text()); return json({error: 'mail', message: 'Slanje e-maila nije uspjelo.'}, 502); }
+  return json({ok: true});
+}
+
 /* ================= admin ================= */
 async function admin(req, env, path) {
   if (!env.ADMIN_PASSWORD) return new Response('ADMIN_PASSWORD nije postavljen.', {status: 500});
@@ -270,6 +324,7 @@ async function admin(req, env, path) {
     const {results: users} = await env.DB.prepare(`
       SELECT u.*, (SELECT MAX(last_seen) FROM devices d WHERE d.email = u.email) AS last_seen,
         (SELECT user_agent FROM devices d WHERE d.email = u.email ORDER BY last_seen DESC LIMIT 1) AS user_agent,
+        (SELECT updated_at FROM backups b WHERE b.email = u.email) AS backup_at,
         COALESCE((SELECT requests FROM usage g WHERE g.email = u.email AND g.day = ?), 0) AS today_requests,
         COALESCE((SELECT photos FROM usage g WHERE g.email = u.email AND g.day = ?), 0) AS today_photos,
         COALESCE((SELECT SUM(requests) FROM usage g WHERE g.email = u.email AND g.day >= ?), 0) AS d30_requests,
@@ -301,7 +356,7 @@ async function admin(req, env, path) {
   }
   if (path === '/admin/api/user/delete' && req.method === 'POST') {
     const e = normEmail(body.email);
-    await env.DB.batch(['users', 'devices', 'codes', 'usage'].map(tb => env.DB.prepare(`DELETE FROM ${tb} WHERE email = ?`).bind(e)));
+    await env.DB.batch(['users', 'devices', 'codes', 'usage', 'backups'].map(tb => env.DB.prepare(`DELETE FROM ${tb} WHERE email = ?`).bind(e)));
     return json({ok: true});
   }
   if (path === '/admin/api/settings' && req.method === 'POST') {

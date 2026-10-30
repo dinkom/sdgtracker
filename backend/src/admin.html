@@ -86,7 +86,7 @@ button:disabled{opacity:.5}
       <button class="primary" type="submit">Spremi</button>
     </form>
     <datalist id="models"><option value="claude-haiku-5-5"><option value="claude-sonnet-5-5"></datalist>
-    <p class="muted small" style="margin:10px 0 0">Trošak je procjena prema cjeniku u kodu servera; točan iznos vidiš u Claude Consoleu. Isključeni polaznik odmah gubi pristup, a podaci mu ostaju na mobitelu.</p>
+    <p class="muted small" style="margin:10px 0 0">Trošak je procjena prema cjeniku u kodu servera; točan iznos vidiš u Claude Consoleu. Isključeni polaznik odmah gubi pristup, a podaci mu ostaju na mobitelu. Sigurnosne kopije su šifrirane ključem koji ima samo polaznik – server ih ne može pročitati.</p>
   </div>
 </main>
 <div id="toast"></div>
@@ -136,7 +136,8 @@ function render() {
       <span class="pill ${u.active ? 'on' : ''}">${u.active ? 'aktivan' : 'isključen'}</span>
       <div class="meta"><span>danas <b>${u.today_requests}/${lim}</b>${u.today_photos ? ` (📷 ${u.today_photos})` : ''} ${atLimit ? '<span class="pill limit">limit</span>' : ''}</span>
         <span>30 dana <b>${fmt(u.d30_requests)}</b> · <b>$${fmt(u.d30_cost, 2)}</b></span>
-        <span>uređaj: <b>${u.last_seen ? `${device(u.user_agent)} · ${ago(u.last_seen)}` : 'nije prijavljen'}</b></span></div>
+        <span>uređaj: <b>${u.last_seen ? `${device(u.user_agent)} · ${ago(u.last_seen)}` : 'nije prijavljen'}</b></span>
+        <span>kopija: <b>${u.backup_at ? ago(u.backup_at) : 'nema'}</b></span></div>
       <div class="acts"><button class="link" data-act="edit">Uredi</button>${u.last_seen ? `<button class="link" data-act="logout">Odjavi uređaj</button>` : ''}<button class="link" data-act="del" style="color:var(--bad)">Obriši</button></div>
       ${editing === u.email ? `<form class="edit" data-act="save">
         <label>Ime<input name="name" value="${esc(u.name)}"></label>

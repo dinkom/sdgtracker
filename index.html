@@ -364,7 +364,14 @@ body.locked{overflow:hidden}
 .acct b{display:block;word-break:break-all}
 .acct-use{display:flex;justify-content:space-between;margin-top:14px;font-size:14px}
 .acct-use span{color:var(--muted)}
+.bkkey{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:17px;letter-spacing:1px;background:var(--surface2);border-radius:12px;padding:12px;text-align:center;margin:10px 0;word-break:break-all}
+.bkrow{display:flex;gap:8px;flex-wrap:wrap}
+.bkrow .btn{flex:1;min-width:130px}
+#rkIn{font-family:ui-monospace,Menlo,Consolas,monospace;text-transform:uppercase;letter-spacing:1px;text-align:center;font-size:17px}
+.rkmsg{color:var(--bad);font-size:14px;margin:8px 0 0;min-height:1em}
 #toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translate(-50%,20px);z-index:60;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:14px;font-size:14px;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:all .25s;text-align:center}
+body.locked #toast{bottom:auto;top:calc(16px + env(safe-area-inset-top));transform:translate(-50%,-20px)}
+body.locked #toast.show{transform:translate(-50%,0)}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 </style>
 <link rel="stylesheet" href="skinovi/osnovni.css" id="skinLink">
@@ -455,7 +462,7 @@ function persist() {
   try { localStorage.setItem(KEY, JSON.stringify(db)); }
   catch (e) { toast('Spremanje nije uspjelo: ' + e.message); }
 }
-function save() { persist(); queueAch(); }
+function save() { persist(); queueAch(); queueBackup(); }
 const S = () => db.settings;
 const G = (m, f) => S().sex === 'f' ? f : m;   // muški / ženski oblik
 
@@ -879,7 +886,7 @@ function settingsHtml() {
 
   <div class="card"><h2>Izgled</h2><div class="skins" id="skinList"></div></div>
 
-  ${SERVER ? accountCardHtml() : `  <div class="card"><h2>Obrada unosa (API)</h2>
+  ${SERVER ? accountCardHtml() + backupCardHtml() : `  <div class="card"><h2>Obrada unosa (API)</h2>
     <div class="keyrow"><label class="f">API ključ<input data-s="apiKey" id="keyIn" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label>
     <button class="btn ghost sm" data-act="showkey" style="min-height:46px">Prikaži</button></div>
     <label class="f" style="margin-top:12px">Model za tekst i glas<select data-s="model">
@@ -901,7 +908,7 @@ function settingsHtml() {
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button>
     <div class="diag"><span>Zapis zadnjih obrada (za prijavu greške)</span>
       <button class="btn sm ghost" data-act="diagcopy">Kopiraj za podršku</button></div></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 3.1</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 3.2</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -1646,7 +1653,7 @@ function accountCardHtml() {
     ${used != null ? `<div class="acct-use"><span>Obrade danas</span><b>${used} / ${lim}</b></div>
       <div class="bar"><i style="width:${Math.min(100, used / Math.max(1, lim) * 100)}%;background:var(--accent)"></i></div>` : ''}
     <label class="chk" style="margin-top:12px"><input type="checkbox" data-s="autoProcess"> Obradi automatski nakon diktiranja</label>
-    <p class="muted small" style="margin:6px 0 0">Prehrana, težina i postignuća spremaju se samo na ovom uređaju. Na server odlaze samo tekst i fotografije koje šalješ na obradu i ne spremaju se.</p></div>`;
+    <p class="muted small" style="margin:6px 0 0">Prehrana, težina i postignuća čuvaju se na ovom uređaju, a na server odlazi samo njihova šifrirana kopija. Tekst i fotografije koje šalješ na obradu se ne spremaju.</p></div>`;
 }
 async function refreshAccount() {
   if (!SERVER || !auth?.token) return;
@@ -1716,13 +1723,139 @@ async function loginVerify(code) {
   L.busy = false;
   if (!ok) { L.msg = j.message || 'Prijava nije uspjela.'; if (j.error === 'expired' || j.error === 'too_many') L.step = 'code'; renderLogin(); return; }
   setAuth({token:j.token, email:j.email, name:j.name || ''});
-  hideLogin(); render(); refreshAccount(); setTimeout(checkAch, 600);
-  toast(`${G('Dobrodošao', 'Dobrodošla')}${j.name ? ', ' + j.name.split(' ')[0] : ''}!`);
+  hideLogin(); render(); refreshAccount(); setTimeout(checkAch, 600); afterLogin();
+  toast(`Bok${j.name ? ', ' + j.name.split(' ')[0] : ''}! Prijava je uspjela.`);
 }
 async function logout() {
   if (!confirm('Odjaviti se s ovog uređaja? Podaci ostaju na uređaju, a za ponovnu prijavu trebat će ti novi kod.')) return;
   try { await fetch(BACKEND_URL + '/auth/logout', {method:'POST', headers:{'authorization':'Bearer ' + auth.token}}); } catch (e) {}
   setAuth(null); account = null; showLogin();
+}
+
+/* ---------- šifrirana sigurnosna kopija ---------- */
+// Podaci se šifriraju NA UREĐAJU (AES-GCM, ključ iz korisnikovog ključa za kopiju). Server dobiva samo šifrat.
+const BK_KEY = 'calquest-backup-key', BK_META = 'calquest-backup-meta', B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const getBackupKey = () => { try { return localStorage.getItem(BK_KEY) || ''; } catch (e) { return ''; } };
+const setBackupKey = k => { try { k ? localStorage.setItem(BK_KEY, k) : localStorage.removeItem(BK_KEY); } catch (e) {} };
+const bkMeta = () => { try { return JSON.parse(localStorage.getItem(BK_META)) || {}; } catch (e) { return {}; } };
+const setBkMeta = m => { try { localStorage.setItem(BK_META, JSON.stringify(m)); } catch (e) {} };
+function newBackupKey() { const b = crypto.getRandomValues(new Uint8Array(20)); let k = ''; for (const x of b) k += B32[x % 32]; return k.match(/.{4}/g).join('-'); }
+function normKey(s) {
+  const c = String(s || '').toUpperCase().replace(/O/g, '0').replace(/[IL]/g, '1').replace(/U/g, 'V').replace(/[^0-9A-Z]/g, '');
+  return c.length === 20 && [...c].every(ch => B32.includes(ch)) ? c.match(/.{4}/g).join('-') : null;
+}
+const maskKey = k => k ? k.slice(0, 4) + '-••••-••••-••••-' + k.slice(-4) : '';
+async function aesKey(code) {
+  const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('calquest-backup-v1:' + code));
+  return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+}
+const toB64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s); };
+const fromB64 = b => Uint8Array.from(atob(b), c => c.charCodeAt(0));
+async function pipeBytes(u8, stream) { return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(stream)).arrayBuffer()); }
+async function sha256hex(str) { const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)); return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join(''); }
+const backupPayload = () => ({...db, settings:{...db.settings, apiKey:''}});
+const hasLocalData = () => Object.keys(db.days).some(k => entriesOf(k).length || db.days[k].steps) || Object.keys(db.weights).length > 0;
+async function encryptBackup(code, obj) {
+  let bytes = new TextEncoder().encode(JSON.stringify(obj)), flag = 0;
+  if ('CompressionStream' in window) { try { bytes = await pipeBytes(bytes, new CompressionStream('gzip')); flag = 1; } catch (e) {} }
+  const plain = new Uint8Array(bytes.length + 1); plain[0] = flag; plain.set(bytes, 1);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM', iv}, await aesKey(code), plain));
+  return {iv:toB64(iv), data:toB64(ct)};
+}
+async function decryptBackup(code, iv, data) {
+  const plain = new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM', iv:fromB64(iv)}, await aesKey(code), fromB64(data)));
+  let bytes = plain.subarray(1);
+  if (plain[0] === 1) bytes = await pipeBytes(bytes, new DecompressionStream('gzip'));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+async function bkFetch(path, opt = {}) {
+  const r = await fetch(BACKEND_URL + path, {...opt, headers:{'content-type':'application/json', 'authorization':'Bearer ' + auth.token, ...(opt.headers || {})}});
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401) { setAuth(null); showLogin(j.message); }
+  return {ok:r.ok, status:r.status, j};
+}
+let bkBusy = false, bkTimer = null;
+function queueBackup() { if (!SERVER) return; clearTimeout(bkTimer); bkTimer = setTimeout(() => backupNow(false), 20000); }
+async function backupNow(force) {
+  if (!SERVER || !auth?.token || bkBusy) return false;
+  const code = getBackupKey(); if (!code) return false;
+  if (!force && !hasLocalData()) return false;        // nikad automatski ne prepisuj kopiju praznim podacima
+  const payload = backupPayload(), hash = await sha256hex(JSON.stringify(payload)), m = bkMeta();
+  if (!force && (m.hash === hash || (m.at && Date.now() - new Date(m.at) < 60 * 60e3))) return false;
+  bkBusy = true;
+  try {
+    const enc = await encryptBackup(code, {v:1, at:new Date().toISOString(), db:payload});
+    const {ok, j} = await bkFetch('/backup', {method:'POST', body:JSON.stringify(enc)});
+    if (ok) { setBkMeta({at:j.updated_at, hash}); if (tab === 'postavke' && !$('#sheet').classList.contains('open')) render(); }
+    return ok;
+  } catch (e) { return false; }
+  finally { bkBusy = false; }
+}
+async function copyText(t) { try { await navigator.clipboard.writeText(t); return true; } catch (e) { return false; } }
+async function sendKeyMail(manual) {
+  const code = getBackupKey(); if (!code) return;
+  const {ok, j} = await bkFetch('/backup/key-mail', {method:'POST', body:JSON.stringify({key:code})});
+  if (manual) toast(ok ? `Ključ je poslan na ${auth.email}` : (j.message || 'Slanje nije uspjelo.'), 4000);
+}
+function backupCardHtml() {
+  const code = getBackupKey(), m = bkMeta();
+  const when = m.at ? new Date(m.at).toLocaleString('hr-HR', {day:'numeric', month:'numeric', hour:'2-digit', minute:'2-digit'}) : null;
+  if (!code) return `<div class="card"><h2>Sigurnosna kopija</h2><p class="muted small" style="margin:0">Kopija još nije uključena.</p></div>`;
+  return `<div class="card"><h2>Sigurnosna kopija</h2>
+    <div class="acct-use" style="margin-top:0"><span>Zadnja kopija</span><b>${when || 'još nije napravljena'}</b></div>
+    <p class="muted small" style="margin:10px 0 0">Ključ za kopiju – trebat će ti na novom mobitelu:</p>
+    <div class="bkkey" id="bkKey">${maskKey(code)}</div>
+    <div class="bkrow"><button class="btn ghost sm" data-act="bkshow">Prikaži</button><button class="btn ghost sm" data-act="bkcopy">Kopiraj</button><button class="btn ghost sm" data-act="bkmail">Pošalji na e-mail</button></div>
+    <div class="bkrow" style="margin-top:8px"><button class="btn sm" data-act="bknow">Napravi kopiju sad</button><button class="btn ghost sm" data-act="bkrestore">Vrati iz kopije</button></div>
+    <p class="muted small" style="margin:10px 0 0">Kopija se radi automatski i šifrirana je tvojim ključem. Bez ključa je nitko ne može otvoriti – ni trener.</p></div>`;
+}
+// nakon prijave: vrati postojeću kopiju ili uključi novu
+async function afterLogin() {
+  if (!SERVER || !auth?.token || getBackupKey()) { backupNow(false); return; }
+  const {ok, j} = await bkFetch('/backup/info');
+  if (ok) openRestore(j, false);
+  else if (j.error === 'none') initBackup();
+}
+async function initBackup() {
+  const code = newBackupKey(); setBackupKey(code); setBkMeta({});
+  await sendKeyMail(false);
+  await backupNow(true);
+  openSheet(`<h3>Sigurnosna kopija je uključena</h3>
+    <p class="muted" style="margin:6px 0 0">Tvoji podaci će se automatski čuvati šifrirano. Ključ za kopiju poslali smo ti na <b>${esc(auth.email)}</b> – sačuvaj taj e-mail. Trebat će ti ako promijeniš ili izgubiš mobitel.</p>
+    <div class="bkkey">${esc(code)}</div>
+    <div class="btns"><button class="btn ghost" data-act="bkcopy">Kopiraj ključ</button><button class="btn" data-act="close">U redu</button></div>`);
+}
+function openRestore(info, manual) {
+  const when = info?.updated_at ? new Date(info.updated_at).toLocaleString('hr-HR', {day:'numeric', month:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit'}) : null;
+  const local = hasLocalData();
+  openSheet(`<h3>${manual ? 'Vrati podatke iz kopije' : 'Pronađena je kopija tvojih podataka'}</h3>
+    <p class="muted" style="margin:6px 0 12px">${when ? `Zadnja kopija: <b>${when}</b>. ` : ''}Upiši ključ iz e-maila „Ključ za sigurnosnu kopiju“.${local ? ' Podaci koji su sada na ovom mobitelu bit će zamijenjeni.' : ''}</p>
+    <input class="inp" id="rkIn" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" value="${manual ? esc(getBackupKey()) : ''}">
+    <p class="rkmsg" id="rkMsg"></p>
+    <div class="btns"><button class="btn ghost" data-act="${manual ? 'rkskip' : 'rkfresh'}">${manual ? 'Odustani' : 'Nemam ključ'}</button><button class="btn" data-act="rkgo" id="rkGo">Vrati podatke</button></div>`);
+  setTimeout(() => $('#rkIn')?.focus(), 300);
+}
+async function doRestore() {
+  const code = normKey($('#rkIn').value), msg = $('#rkMsg'), btn = $('#rkGo');
+  if (!code) { msg.textContent = 'Ključ ima 20 znakova u obliku XXXX-XXXX-XXXX-XXXX-XXXX.'; return; }
+  btn.disabled = true; btn.textContent = 'Vraćam…'; msg.textContent = '';
+  try {
+    const {ok, j} = await bkFetch('/backup');
+    if (!ok) { msg.textContent = j.error === 'none' ? 'Na serveru nema kopije.' : (j.message || 'Dohvat kopije nije uspio.'); return; }
+    let data;
+    try { data = await decryptBackup(code, j.iv, j.data); } catch (e) { msg.textContent = 'Ključ ne odgovara ovoj kopiji. Provjeri jesi li ga točno prepisao/la.'; return; }
+    const d = data.db || {};
+    db = {settings:{...DEF, ...(d.settings || {}), apiKey:''}, days:d.days || {}, weights:d.weights || {}, meals:d.meals || [], ach:d.ach || null, stats:d.stats || {}};
+    persist(); setBackupKey(code);
+    setBkMeta({at:j.updated_at, hash:await sha256hex(JSON.stringify(backupPayload()))});
+    closeSheet(); cur = todayKey(); tab = 'dan'; render();
+    toast('Podaci su vraćeni iz kopije ✓', 3500);
+  } finally { if (btn.isConnected) { btn.disabled = false; btn.textContent = 'Vrati podatke'; } }
+}
+function startFresh() {
+  if (!confirm('Bez ključa se postojeća kopija ne može otvoriti. Napravit ćemo novu kopiju s novim ključem, a stara će biti zamijenjena. Nastaviti?')) return;
+  closeSheet(); setTimeout(initBackup, 350);
 }
 
 /* ---------- postignuća ---------- */
@@ -2017,6 +2150,14 @@ document.addEventListener('click', e => {
     case 'showkey': { const k = $('#keyIn'); k.type = k.type === 'password' ? 'text' : 'password'; el.textContent = k.type === 'password' ? 'Prikaži' : 'Sakrij'; break; }
     case 'testkey': testKey(); break;
     case 'logout': logout(); break;
+    case 'bknow': { el.disabled = true; el.textContent = 'Spremam…'; backupNow(true).then(ok => { toast(ok ? 'Kopija spremljena' : 'Kopija nije spremljena – provjeri internet'); render(); }); break; }
+    case 'bkmail': sendKeyMail(true); break;
+    case 'bkshow': { const k = $('#bkKey'); k.dataset.shown = k.dataset.shown ? '' : '1'; k.textContent = k.dataset.shown ? getBackupKey() : maskKey(getBackupKey()); el.textContent = k.dataset.shown ? 'Sakrij' : 'Prikaži'; break; }
+    case 'bkcopy': copyText(getBackupKey()).then(ok => toast(ok ? 'Ključ kopiran' : 'Kopiranje nije uspjelo – prepiši ga ručno')); break;
+    case 'bkrestore': openRestore(null, true); break;
+    case 'rkgo': doRestore(); break;
+    case 'rkfresh': startFresh(); break;
+    case 'rkskip': closeSheet(); break;
     case 'lgback': loginState.step = 'email'; loginState.msg = ''; renderLogin(); break;
     case 'lgresend': if (loginState.wait <= 0) loginSendCode(loginState.email); break;
     case 'diagcopy': {
@@ -2114,6 +2255,7 @@ function onResume() {
   if ((changed || tab === 'dan') && !$('#sheet').classList.contains('open')) render();
 }
 document.addEventListener('visibilitychange', onResume);
+document.addEventListener('visibilitychange', () => { if (document.hidden) backupNow(false); });
 window.addEventListener('focus', onResume);
 window.addEventListener('pageshow', onResume);
 setInterval(() => { if (!document.hidden && checkDay() && !$('#sheet').classList.contains('open')) render(); }, 30000);
@@ -2122,7 +2264,7 @@ render(); autosize(); fitPlaceholder();
 window.addEventListener('resize', fitPlaceholder);
 document.fonts?.ready?.then(fitPlaceholder);
 if (SERVER && S().apiKey) { db.settings.apiKey = ''; persist(); }   // ključ više ne živi na uređaju
-if (SERVER && !auth?.token) showLogin(); else { setTimeout(checkAch, 600); refreshAccount(); }
+if (SERVER && !auth?.token) showLogin(); else { setTimeout(checkAch, 600); refreshAccount(); if (SERVER) setTimeout(() => getBackupKey() ? backupNow(false) : afterLogin(), 1500); }
 function syncThemeColor() {
   const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
   if (bg) document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.content = bg);

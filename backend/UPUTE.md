@@ -90,10 +90,19 @@ Tvoji dosadašnji podaci ostaju, a stari API ključ se sam briše s uređaja.
 - **Novi mobitel:** polaznik se samo prijavi na novom – stari se sam odjavi. Ako izgubi mobitel, klikni **Odjavi uređaj**.
 - **Promjena modela ili limita:** admin → Postavke (vrijedi za sve od idućeg unosa).
 
+### Sigurnosna kopija podataka
+- Aplikacija nakon prve prijave sama napravi **ključ za kopiju** (npr. `ABCD-EFGH-…`) i pošalje ga polazniku e-mailom „Ključ za sigurnosnu kopiju“.
+- Podaci se šifriraju na mobitelu i automatski šalju na server (otprilike jednom na sat ako ima promjena). Server ih ne može pročitati.
+- **Novi mobitel:** polaznik se prijavi kodom → aplikacija ponudi vraćanje → upiše ključ iz e-maila → sve se vrati.
+- **Izgubljen ključ:** dok stari mobitel radi, ključ je u Profilu → Sigurnosna kopija (Prikaži / Pošalji na e-mail). Bez ključa i bez starog mobitela kopija se ne može otvoriti – to je cijena šifriranja.
+- Na admin stranici uz svakog polaznika vidiš kad je napravljena zadnja kopija.
+
 ### Promjene na serveru ubuduće
 Kad ti pošaljem novu verziju `worker.js` ili `admin.html`: zamijeni datoteke u `backend/src` i pokreni `npx wrangler deploy`.
+Ako se promijenio i `schema.sql`, prije toga pokreni `npx wrangler d1 execute calquest --remote --file schema.sql` (sigurno je – ništa ne briše).
 
 ### Što je gdje
 - Na serveru: e-mailovi i imena polaznika, status, broj obrada i procijenjeni trošak po danu.
 - Na mobitelu: sve ostalo (unosi, težina, obroci, postignuća).
+- Na serveru je i **šifrirana** kopija tih podataka – bez ključa koji ima samo polaznik ne može se pročitati.
 - Tekst i fotografije unosa prolaze kroz server do Claudea na obradu i nigdje se ne spremaju.
