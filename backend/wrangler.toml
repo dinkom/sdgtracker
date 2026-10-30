@@ -1,0 +1,27 @@
+name = "calquest-api"
+main = "src/worker.js"
+compatibility_date = "2024-09-23"
+
+# admin.html se uključuje kao tekst
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = false
+
+[vars]
+# adresa(e) s kojih aplikacija smije zvati server (odvoji zarezom)
+ALLOWED_ORIGINS = "https://calquest.sdggym.com"
+MAIL_FROM = "calquest@sdggym.com"
+MAIL_FROM_NAME = "SDG CalQuest"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "calquest"
+# zamijeni ID-jem koji ti ispiše: npx wrangler d1 create calquest
+database_id = "d4b218c9-4f28-405b-a848-7f6335b02054"
+
+# Tajne (NE upisuj ih ovdje, nego naredbom: npx wrangler secret put IME):
+#   ANTHROPIC_API_KEY  – ključ s Claude Consolea (samo za server)
+#   BREVO_API_KEY      – ključ za slanje e-maila (Brevo → SMTP & API → API keys)
+#   ADMIN_PASSWORD     – tvoja lozinka za admin stranicu (dugačka!)
+#   CODE_SALT          – bilo koji dugi nasumični niz znakova

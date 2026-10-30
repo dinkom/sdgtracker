@@ -348,7 +348,23 @@ body.locked{overflow:hidden}
 .sumbox.todo .btn{flex:none}
 .diag{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--muted)}
 .diag .btn{flex:none}
-#toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translate(-50%,20px);z-index:30;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:14px;font-size:14px;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:all .25s;text-align:center}
+#login{position:fixed;inset:0;z-index:50;background:var(--bg);display:grid;place-items:center;padding:24px 20px;overflow:auto}
+#login .lg-box{width:100%;max-width:360px;text-align:center}
+#login .lg-logo{width:84px;height:84px;border-radius:20px;box-shadow:var(--shadow)}
+#login h1{margin:14px 0 6px;font-size:26px}
+#login p{margin:0 0 18px;line-height:1.45}
+#login form{display:grid;gap:12px}
+#login .inp{font-size:18px;padding:14px;text-align:center}
+#login .lg-code{font-size:28px;letter-spacing:10px;font-variant-numeric:tabular-nums}
+#login .btn{min-height:52px;font-size:17px}
+#login .lg-msg{margin:0;color:var(--bad);font-size:14px}
+#login .lg-links{display:flex;justify-content:space-between;margin-top:8px}
+#login .linkbtn:disabled{opacity:.45}
+.acct{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.acct b{display:block;word-break:break-all}
+.acct-use{display:flex;justify-content:space-between;margin-top:14px;font-size:14px}
+.acct-use span{color:var(--muted)}
+#toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translate(-50%,20px);z-index:60;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:14px;font-size:14px;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:all .25s;text-align:center}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 </style>
 <link rel="stylesheet" href="skinovi/osnovni.css" id="skinLink">
@@ -390,10 +406,19 @@ body.locked{overflow:hidden}
 <div class="sheet" id="sheet"></div>
 <div id="toast"></div>
 <div id="achFx" hidden></div>
+<div id="login" hidden></div>
 <input type="file" id="impFile" accept="application/json,.json" hidden>
 
 <script>
 'use strict';
+// ===== KONFIGURACIJA =====
+// Adresa servera (Cloudflare Worker). Prazno = stari način rada s vlastitim API ključem u Profilu.
+const BACKEND_URL = '';
+const SERVER = !!BACKEND_URL;
+const AUTH_KEY = 'calquest-auth';
+let auth = (() => { try { return JSON.parse(localStorage.getItem(AUTH_KEY)); } catch (e) { return null; } })();
+let account = null;   // {email, name, today:{requests, photos}, limit} sa servera
+function setAuth(a) { auth = a; try { a ? localStorage.setItem(AUTH_KEY, JSON.stringify(a)) : localStorage.removeItem(AUTH_KEY); } catch (e) {} }
 const KEY = 'zalogaj-v1';
 const API = 'https://api.anthropic.com/v1/messages';
 const DEF = {skin:'osnovni', apiKey:'', model:'claude-haiku-5-5', photoModel:'claude-sonnet-5-5', sex:'m', age:'', height:'', activity:1.375, goalRate:-0.25,
@@ -854,7 +879,7 @@ function settingsHtml() {
 
   <div class="card"><h2>Izgled</h2><div class="skins" id="skinList"></div></div>
 
-  <div class="card"><h2>Obrada unosa (API)</h2>
+  ${SERVER ? accountCardHtml() : `  <div class="card"><h2>Obrada unosa (API)</h2>
     <div class="keyrow"><label class="f">API ključ<input data-s="apiKey" id="keyIn" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label>
     <button class="btn ghost sm" data-act="showkey" style="min-height:46px">Prikaži</button></div>
     <label class="f" style="margin-top:12px">Model za tekst i glas<select data-s="model">
@@ -868,6 +893,7 @@ function settingsHtml() {
     <button class="btn ghost sm" data-act="testkey" id="testBtn">Testiraj ključ</button>
     <p class="muted small" style="margin:10px 0 0">Ključ se čuva samo na ovom uređaju i koristi se isključivo za obradu tvojih unosa.</p></div>
 
+`}
   <div class="card"><h2>Podaci</h2>
     <p class="muted small" style="margin:0 0 12px">Sve je spremljeno samo u ovom pregledniku. Povremeno napravi sigurnosnu kopiju.</p>
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
@@ -875,7 +901,7 @@ function settingsHtml() {
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button>
     <div class="diag"><span>Zapis zadnjih obrada (za prijavu greške)</span>
       <button class="btn sm ghost" data-act="diagcopy">Kopiraj za podršku</button></div></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 2.10</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 3.0</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -1031,7 +1057,28 @@ function softenToolChoice(body) {
   const note = `\n\nVAŽNO: Odgovori isključivo pozivom alata ${name}, bez ikakvog drugog teksta.`;
   return {...body, tool_choice:{type:'auto'}, system:(body.system || '') + note};
 }
+async function callServer(body) {
+  if (!auth?.token) { showLogin(); throw new Error('Prijavi se za nastavak.'); }
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 75000);
+  let r;
+  try {
+    r = await fetch(BACKEND_URL + '/claude', {method:'POST', signal:ctl.signal,
+      headers:{'content-type':'application/json', 'authorization':'Bearer ' + auth.token}, body:JSON.stringify({request:body})});
+  } catch (e) {
+    throw new Error(e.name === 'AbortError' ? 'Zahtjev je predugo trajao. Pokušaj ponovno.' : 'Nema veze s poslužiteljem. Provjeri internet.');
+  } finally { clearTimeout(timer); }
+  const j = await r.json().catch(() => ({}));
+  if (r.ok) { if (account) { account.today.requests++; } return j; }
+  const m = j?.error?.message || j?.message || r.statusText;
+  if (r.status === 401) { setAuth(null); showLogin(m); throw new Error(m); }
+  const err = new Error(m);
+  if (r.status === 400 && /tool_choice/i.test(m)) err.toolChoice = true;
+  else if (r.status === 529 || r.status === 500 || r.status === 502) err.message = 'Aplikacija je trenutno preopterećena. Pokušaj ponovno.';
+  else if (r.status === 429 && j?.error?.type !== 'limit') err.message = 'Previše zahtjeva – pokušaj za minutu.';
+  throw err;
+}
 async function callClaudeOnce(body, model) {
+  if (SERVER) return callServer(body);
   const s = S(), ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 60000);
   let r;
   try {
@@ -1221,7 +1268,7 @@ function setBusy(b) { busy = b; $('#send').classList.toggle('busy', b); autosize
 async function processInput() {
   const text = inp.value.trim(), ph = photo;
   if ((!text && !ph) || busy) return;
-  if (!S().apiKey.trim()) { toast('Prvo upiši API ključ u Profilu.'); return; }
+  if (!SERVER && !S().apiKey.trim()) { toast('Prvo upiši API ključ u Profilu.'); return; }
   setBusy(true);
   try {
     const res = await askClaude(text, ph), voice = usedVoice;
@@ -1276,7 +1323,7 @@ function renderConfirm() {
   let h = `<h3>Provjeri unos</h3>
     <div class="quote">${p.photo ? `<img class="qimg" src="${p.photo.url}" alt="">` : ''}<span style="flex:1">${p.text ? `„${esc(p.text)}“` : 'Procjena s fotografije'}</span><button data-act="retext">Ispravi${p.photo ? '' : ' tekst'}</button></div>`;
   if (p.note) h += `<p class="muted small" style="margin:-4px 0 10px">${esc(p.note)}</p>`;
-  if (p.model) h += `<p class="muted small" style="margin:-6px 0 10px;text-align:right">Obradio: ${esc(MODEL_NAMES[p.model] || p.model)}</p>`;
+  if (p.model && !SERVER) h += `<p class="muted small" style="margin:-6px 0 10px;text-align:right">Obradio: ${esc(MODEL_NAMES[p.model] || p.model)}</p>`;
   if (!p.items.length && p.steps == null) {
     h += `<div class="empty">Nisam prepoznao hranu ni aktivnost.</div>
       <div class="btns"><button class="btn ghost" data-act="close">Zatvori</button><button class="btn" data-act="retext">Ispravi tekst</button></div>`;
@@ -1411,7 +1458,7 @@ function formEntry(kind) {
 async function aiEdit(kind) {
   const ask = $('#eAsk').value.trim();
   if (!ask) { toast('Reci ili upiši izmjenu'); return; }
-  if (!S().apiKey.trim()) { toast('Prvo upiši API ključ u Profilu.'); return; }
+  if (!SERVER && !S().apiKey.trim()) { toast('Prvo upiši API ključ u Profilu.'); return; }
   const btn = $('#eAskBtn'); btn.disabled = true; btn.textContent = '…';
   const w = weightAt(cur) || weightAt(todayKey()) || 80;
   try {
@@ -1588,6 +1635,94 @@ async function testKey() {
   try { await callClaude({max_tokens:5, messages:[{role:'user', content:'Odgovori samo: ok'}]}); toast('Ključ radi ✓'); }
   catch (e) { toast(e.message, 4500); }
   finally { b.disabled = false; b.textContent = 'Testiraj ključ'; }
+}
+
+/* ---------- račun i prijava ---------- */
+function accountCardHtml() {
+  const a = account, used = a?.today?.requests ?? null, lim = a?.limit ?? null;
+  return `<div class="card"><h2>Račun</h2>
+    <div class="acct"><div><span class="muted small">Prijavljen${G('', 'a')} kao</span><b>${esc(auth?.email || '')}</b></div>
+      <button class="btn ghost sm" data-act="logout">Odjavi se</button></div>
+    ${used != null ? `<div class="acct-use"><span>Obrade danas</span><b>${used} / ${lim}</b></div>
+      <div class="bar"><i style="width:${Math.min(100, used / Math.max(1, lim) * 100)}%;background:var(--accent)"></i></div>` : ''}
+    <label class="chk" style="margin-top:12px"><input type="checkbox" data-s="autoProcess"> Obradi automatski nakon diktiranja</label>
+    <p class="muted small" style="margin:6px 0 0">Prehrana, težina i postignuća spremaju se samo na ovom uređaju. Na server odlaze samo tekst i fotografije koje šalješ na obradu i ne spremaju se.</p></div>`;
+}
+async function refreshAccount() {
+  if (!SERVER || !auth?.token) return;
+  try {
+    const r = await fetch(BACKEND_URL + '/me', {headers:{'authorization':'Bearer ' + auth.token}});
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) { setAuth(null); showLogin(j.message); return; }
+    if (r.status === 403) { account = null; toast(j.message || 'Pristup nije aktivan.', 5000); return; }
+    if (r.ok) { account = j; if (j.name && auth.name !== j.name) setAuth({...auth, name:j.name}); if (tab === 'postavke') render(); }
+  } catch (e) {}
+}
+let loginState = {step:'email', email:'', busy:false, msg:'', wait:0};
+function showLogin(msg) {
+  if (!SERVER) return;
+  loginState = {step:'email', email:loginState.email || auth?.email || '', busy:false, msg:msg || '', wait:0};
+  renderLogin(); $('#login').hidden = false; document.body.classList.add('locked');
+}
+function hideLogin() { $('#login').hidden = true; document.body.classList.remove('locked'); }
+function renderLogin() {
+  const L = loginState, el = $('#login');
+  el.innerHTML = `<div class="lg-box">
+    <img src="sdg-icon-192.png" alt="" class="lg-logo">
+    <h1>SDG CalQuest</h1>
+    ${L.step === 'email' ? `
+      <p class="muted">Upiši e-mail adresu prijavljenu u SDG Gymu. Poslat ćemo ti kod za prijavu.</p>
+      <form data-form="lgEmail"><input class="inp" id="lgEmail" type="email" inputmode="email" autocomplete="email" placeholder="ime@gmail.com" value="${esc(L.email)}" required>
+      ${L.msg ? `<p class="lg-msg">${esc(L.msg)}</p>` : ''}
+      <button class="btn" type="submit" ${L.busy ? 'disabled' : ''}>${L.busy ? 'Šaljem…' : 'Pošalji kod'}</button></form>`
+    : `
+      <p class="muted">Kod smo poslali na <b>${esc(L.email)}</b>. Provjeri i mapu neželjene pošte.</p>
+      <form data-form="lgCode"><input class="inp lg-code" id="lgCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" required>
+      ${L.msg ? `<p class="lg-msg">${esc(L.msg)}</p>` : ''}
+      <button class="btn" type="submit" ${L.busy ? 'disabled' : ''}>${L.busy ? 'Provjeravam…' : 'Prijavi se'}</button></form>
+      <div class="lg-links"><button class="linkbtn" data-act="lgback">Promijeni e-mail</button>
+        <button class="linkbtn" data-act="lgresend" ${L.wait > 0 ? 'disabled' : ''}>${L.wait > 0 ? `Novi kod za ${L.wait} s` : 'Pošalji novi kod'}</button></div>`}
+  </div>`;
+  setTimeout(() => (L.step === 'email' ? $('#lgEmail') : $('#lgCode'))?.focus(), 50);
+}
+let waitTimer = null;
+function startWait(sec) {
+  loginState.wait = sec; clearInterval(waitTimer);
+  waitTimer = setInterval(() => {
+    loginState.wait--; const b = $('#login [data-act="lgresend"]');
+    if (b) { b.disabled = loginState.wait > 0; b.textContent = loginState.wait > 0 ? `Novi kod za ${loginState.wait} s` : 'Pošalji novi kod'; }
+    if (loginState.wait <= 0) clearInterval(waitTimer);
+  }, 1000);
+}
+async function authPost(path, body) {
+  let r;
+  try { r = await fetch(BACKEND_URL + path, {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(body)}); }
+  catch (e) { return {ok:false, j:{message:'Nema veze s poslužiteljem. Provjeri internet.'}}; }
+  return {ok:r.ok, status:r.status, j:await r.json().catch(() => ({}))};
+}
+async function loginSendCode(email) {
+  const L = loginState; L.email = email.trim().toLowerCase(); L.busy = true; L.msg = ''; renderLogin();
+  const {ok, j} = await authPost('/auth/start', {email:L.email});
+  L.busy = false;
+  if (ok || j.error === 'wait') {
+    L.step = 'code'; L.msg = ok ? '' : j.message;
+    if (j.devCode) L.msg = 'Testni kod: ' + j.devCode;
+    renderLogin(); startWait(j.wait || 60);
+  } else { L.msg = j.message || 'Slanje koda nije uspjelo.'; renderLogin(); }
+}
+async function loginVerify(code) {
+  const L = loginState; L.busy = true; L.msg = ''; renderLogin();
+  const {ok, j} = await authPost('/auth/verify', {email:L.email, code});
+  L.busy = false;
+  if (!ok) { L.msg = j.message || 'Prijava nije uspjela.'; if (j.error === 'expired' || j.error === 'too_many') L.step = 'code'; renderLogin(); return; }
+  setAuth({token:j.token, email:j.email, name:j.name || ''});
+  hideLogin(); render(); refreshAccount(); setTimeout(checkAch, 600);
+  toast(`${G('Dobrodošao', 'Dobrodošla')}${j.name ? ', ' + j.name.split(' ')[0] : ''}!`);
+}
+async function logout() {
+  if (!confirm('Odjaviti se s ovog uređaja? Podaci ostaju na uređaju, a za ponovnu prijavu trebat će ti novi kod.')) return;
+  try { await fetch(BACKEND_URL + '/auth/logout', {method:'POST', headers:{'authorization':'Bearer ' + auth.token}}); } catch (e) {}
+  setAuth(null); account = null; showLogin();
 }
 
 /* ---------- postignuća ---------- */
@@ -1881,8 +2016,11 @@ document.addEventListener('click', e => {
     }
     case 'showkey': { const k = $('#keyIn'); k.type = k.type === 'password' ? 'text' : 'password'; el.textContent = k.type === 'password' ? 'Prikaži' : 'Sakrij'; break; }
     case 'testkey': testKey(); break;
+    case 'logout': logout(); break;
+    case 'lgback': loginState.step = 'email'; loginState.msg = ''; renderLogin(); break;
+    case 'lgresend': if (loginState.wait <= 0) loginSendCode(loginState.email); break;
     case 'diagcopy': {
-      const raw = JSON.stringify({verzija:(document.body.textContent.match(/SDG CalQuest \d+\.\d+/) || [''])[0], skin:S().skin, model:S().model, photoModel:S().photoModel, zadnja_greska:JSON.parse(localStorage.getItem('sdg-last-bad') || 'null'), zadnje_obrade:JSON.parse(localStorage.getItem('sdg-recent') || '[]')}, null, 1);
+      const raw = JSON.stringify({verzija:(document.body.textContent.match(/SDG CalQuest \d+\.\d+/) || [''])[0], skin:S().skin, server:SERVER, email:auth?.email || null, model:SERVER ? 'server' : S().model, photoModel:SERVER ? 'server' : S().photoModel, zadnja_greska:JSON.parse(localStorage.getItem('sdg-last-bad') || 'null'), zadnje_obrade:JSON.parse(localStorage.getItem('sdg-recent') || '[]')}, null, 1);
       (navigator.clipboard?.writeText(raw) || Promise.reject()).then(() => toast('Kopirano – zalijepi u poruku'), () => {
         openSheet(`<h3>Dijagnostika</h3><textarea class="inp" style="height:50vh;font-size:12px" readonly>${esc(raw)}</textarea><div class="btns"><button class="btn" data-act="close">Zatvori</button></div>`);
       });
@@ -1942,6 +2080,13 @@ document.addEventListener('change', e => {
   }
 });
 $('#scrim').addEventListener('click', closeSheet);
+$('#login').addEventListener('submit', e => {
+  e.preventDefault();
+  const f = e.target.dataset.form;
+  if (f === 'lgEmail') { const v = $('#lgEmail').value; if (v.trim()) loginSendCode(v); }
+  if (f === 'lgCode') { const v = $('#lgCode').value.replace(/\D/g, ''); if (v.length === 6) loginVerify(v); else { loginState.msg = 'Kod ima 6 znamenki.'; renderLogin(); } }
+});
+$('#login').addEventListener('input', e => { if (e.target.id === 'lgCode' && e.target.value.replace(/\D/g, '').length === 6 && !loginState.busy) loginVerify(e.target.value.replace(/\D/g, '')); });
 $('#mic').addEventListener('click', toggleMic);
 $('#send').addEventListener('click', processInput);
 $('#cam').addEventListener('click', () => $('#photoIn').click());
@@ -1964,6 +2109,7 @@ function checkDay() {
 }
 function onResume() {
   if (document.hidden) return;
+  if (SERVER && auth?.token && Math.random() < 0.5) refreshAccount();
   const changed = checkDay();
   if ((changed || tab === 'dan') && !$('#sheet').classList.contains('open')) render();
 }
@@ -1975,7 +2121,8 @@ setInterval(() => { if (!document.hidden && checkDay() && !$('#sheet').classList
 render(); autosize(); fitPlaceholder();
 window.addEventListener('resize', fitPlaceholder);
 document.fonts?.ready?.then(fitPlaceholder);
-setTimeout(checkAch, 600);
+if (SERVER && S().apiKey) { db.settings.apiKey = ''; persist(); }   // ključ više ne živi na uređaju
+if (SERVER && !auth?.token) showLogin(); else { setTimeout(checkAch, 600); refreshAccount(); }
 function syncThemeColor() {
   const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
   if (bg) document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.content = bg);

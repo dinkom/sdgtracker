@@ -1,4 +1,4 @@
-const CACHE = 'calquest-v11';
+const CACHE = 'calquest-v12';
 const ASSETS = ['./', './index.html', './skinovi/skinovi.json', './skinovi/osnovni.css', './skinovi/jesen.css', './skinovi/bozic.css', './calquest.webmanifest', './sdg-icon-192.png', './sdg-icon-512.png', './sdg-icon-maskable-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
