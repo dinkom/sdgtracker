@@ -873,10 +873,9 @@ function settingsHtml() {
     <div class="row2"><button class="btn sm" data-act="export">Izvezi kopiju</button>
     <button class="btn sm ghost" data-act="import">Uvezi kopiju</button></div>
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button>
-    ${(() => { let b = null; try { b = JSON.parse(localStorage.getItem('sdg-last-bad')); } catch (e) {} if (!b) return '';
-      return `<div class="diag"><span>Zadnja neuspjela obrada: ${esc(new Date(b.at).toLocaleString('hr-HR'))}</span>
-        <button class="btn sm ghost" data-act="diagcopy">Kopiraj za podršku</button></div>`; })()}</div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 2.9</p>`;
+    <div class="diag"><span>Zapis zadnjih obrada (za prijavu greške)</span>
+      <button class="btn sm ghost" data-act="diagcopy">Kopiraj za podršku</button></div></div>
+  <p class="muted small" style="text-align:center">SDG CalQuest 2.10</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -973,7 +972,8 @@ HRANA
 
 FOTOGRAFIJA
 - Ako je priložena fotografija obroka, prepoznaj namirnice i procijeni porcije prema vizualnim referencama (veličina tanjura ~26 cm, pribor, ruka, pakiranje).
-- Ako tekst navodi količinu ili koliko je pojedeno ("pojeo sam pola"), tekst ima prednost pred procjenom sa slike.
+- Tekst i fotografija opisuju ISTI obrok: svaku namirnicu zapiši samo JEDNOM. Ne zapisuj posebno stavke iz teksta i posebno sa slike.
+- Ako tekst navodi količinu ili koliko je pojedeno ("pojeo sam pola"), tekst ima prednost pred procjenom sa slike. Namirnicu koja se vidi na slici, a nije u tekstu, dodaj samo ako je jasno da nije ista kao neka već navedena.
 - Ako je na fotografiji nutritivna deklaracija ili pakiranje, očitaj vrijednosti (na 100 g/ml) i preračunaj na navedenu količinu; ako količina nije navedena, uzmi jednu uobičajenu porciju i to napiši.
 - Kad je porcija na slici teško procjenjiva (zdjela s dubinom, skriveni umaci, ulje), stavi sigurnost "niska".
 
@@ -1119,10 +1119,21 @@ function normalizeEntry(out) {
       if (typeof x[k] === 'string') { const n = parseFloat(x[k].replace(',', '.')); x[k] = isNaN(n) ? undefined : n; }
   }
   const kor = typeof out.koraci === 'string' ? parseFloat(out.koraci.replace(/\./g, '')) : out.koraci;
-  return {...out, stavke:st, koraci:kor};
+  // identične stavke u istom odgovoru (isti naziv, količina i kcal) gotovo su uvijek greška modela
+  const keyOf_ = x => [String(x.vrsta || ''), String(x.naziv || '').trim().toLowerCase(), String(x.kolicina || '').trim().toLowerCase(), Math.round(+x.kcal || 0), Math.round(+x.grami || 0), Math.round(+x.minute || 0)].join('|');
+  const seenK = new Set(), dupes = [];
+  st = st.filter(x => { const k = keyOf_(x); if (seenK.has(k)) { dupes.push(x); return false; } seenK.add(k); return true; });
+  return {...out, stavke:st, koraci:kor, _dupes:dupes.length};
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const isTransient = e => /preopterećen|predugo|Nema veze|Greška 5\d\d|Previše zahtjeva/.test(e.message);
+function logRecent(entry) {
+  try {
+    const arr = JSON.parse(localStorage.getItem('sdg-recent') || '[]');
+    arr.unshift({at:new Date().toISOString(), ...entry});
+    localStorage.setItem('sdg-recent', JSON.stringify(arr.slice(0, 8)).slice(0, 30000));
+  } catch (e) {}
+}
 function logBad(kind, data) {
   try { localStorage.setItem('sdg-last-bad', JSON.stringify({kind, at:new Date().toISOString(), data:JSON.stringify(data).slice(0, 12000)})); } catch (e) {}
   console.warn('SDG: neispravan odgovor', kind, data);
@@ -1143,7 +1154,7 @@ async function askClaude(text, ph) {
       const nap = out?.napomena || '';
       const suspicious = out && !out.stavke.length && out.koraci == null && attempt === 1 &&
         /\d|\bMET\b|kcal/i.test(nap) && !/ne sadrži|ne sadrzi|nema hran|nije prepozn|nisam prepozn/i.test(nap);
-      if (out && !suspicious) return {...out, _model:j.model || model};
+      if (out && !suspicious) { logRecent({input:text, photo:!!ph, model, stavke:out.stavke, dupes:out._dupes, napomena:out.napomena}); return {...out, _model:j.model || model}; }
       logBad(suspicious ? 'prazno' : 'unos', {input:text, photo:!!ph, model, response:j});
       if (j.stop_reason === 'max_tokens') body.max_tokens = Math.min(16000, body.max_tokens * 2);   // odgovor je odrezan
       if (!body.system.includes('PONOVLJENI UPIT')) body.system += '\n\nPONOVLJENI UPIT: prethodni odgovor nije bio upotrebljiv. Pozovi alat zapisi_unos s listom stavke; svaka stavka je objekt s poljima vrsta, naziv, kcal (za aktivnost obavezno minute i met). Više vježbi jednog treninga zapiši kao JEDNU stavku aktivnosti s ukupnim trajanjem.';
@@ -1306,7 +1317,9 @@ function onConfirmInput(el) {
   $('#cTotal').innerHTML = confirmTotals();
 }
 function saveConfirm() {
-  const p = pending; if (!p) return;
+  const p = pending; if (!p || p.saved) return;
+  p.saved = true;   // drugi brzi dodir na "Spremi" ne smije upisati stavke ponovno
+  document.querySelectorAll('#sheet [data-act="confirm"]').forEach(b => b.disabled = true);
   const meal = $('#cMeal')?.value || p.meal;
   const day = (db.days[cur] ||= {entries:[]});
   const clean = it => ({id:uid(), kind:it.kind, name:it.name.trim() || (it.kind === 'food' ? 'Namirnica' : 'Aktivnost'), amount:it.amount,
@@ -1869,7 +1882,7 @@ document.addEventListener('click', e => {
     case 'showkey': { const k = $('#keyIn'); k.type = k.type === 'password' ? 'text' : 'password'; el.textContent = k.type === 'password' ? 'Prikaži' : 'Sakrij'; break; }
     case 'testkey': testKey(); break;
     case 'diagcopy': {
-      const raw = localStorage.getItem('sdg-last-bad') || '';
+      const raw = JSON.stringify({verzija:(document.body.textContent.match(/SDG CalQuest \d+\.\d+/) || [''])[0], skin:S().skin, model:S().model, photoModel:S().photoModel, zadnja_greska:JSON.parse(localStorage.getItem('sdg-last-bad') || 'null'), zadnje_obrade:JSON.parse(localStorage.getItem('sdg-recent') || '[]')}, null, 1);
       (navigator.clipboard?.writeText(raw) || Promise.reject()).then(() => toast('Kopirano – zalijepi u poruku'), () => {
         openSheet(`<h3>Dijagnostika</h3><textarea class="inp" style="height:50vh;font-size:12px" readonly>${esc(raw)}</textarea><div class="btns"><button class="btn" data-act="close">Zatvori</button></div>`);
       });
