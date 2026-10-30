@@ -413,7 +413,7 @@ body.locked{overflow:hidden}
 'use strict';
 // ===== KONFIGURACIJA =====
 // Adresa servera (Cloudflare Worker). Prazno = stari način rada s vlastitim API ključem u Profilu.
-const BACKEND_URL = '';
+const BACKEND_URL = 'https://calquest-api.sdggym.workers.dev';
 const SERVER = !!BACKEND_URL;
 const AUTH_KEY = 'calquest-auth';
 let auth = (() => { try { return JSON.parse(localStorage.getItem(AUTH_KEY)); } catch (e) { return null; } })();
@@ -901,7 +901,7 @@ function settingsHtml() {
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button>
     <div class="diag"><span>Zapis zadnjih obrada (za prijavu greške)</span>
       <button class="btn sm ghost" data-act="diagcopy">Kopiraj za podršku</button></div></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 3.0</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 3.1</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
