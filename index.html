@@ -9,6 +9,10 @@
 <link rel="manifest" href="calquest.webmanifest">
 <link rel="icon" href="sdg-icon-192.png">
 <link rel="apple-touch-icon" href="sdg-icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CalQuest">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>
 :root{
   --bg:#f5f2ec;--surface:#fff;--surface2:#ece8e0;--text:#1c1a17;--muted:#716b61;--line:#e3ded4;
@@ -369,6 +373,10 @@ body.locked{overflow:hidden}
 .bkrow .btn{flex:1;min-width:130px}
 #rkIn{font-family:ui-monospace,Menlo,Consolas,monospace;text-transform:uppercase;letter-spacing:1px;text-align:center;font-size:17px}
 .rkmsg{color:var(--bad);font-size:14px;margin:8px 0 0;min-height:1em}
+.inst{text-align:left;margin:0 0 14px;padding-left:22px;line-height:1.5}
+.inst li{margin:0 0 10px}
+.card .inst{margin-top:8px}
+#login .inst{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 14px 4px 34px}
 #toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translate(-50%,20px);z-index:60;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:14px;font-size:14px;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:all .25s;text-align:center}
 body.locked #toast{bottom:auto;top:calc(16px + env(safe-area-inset-top));transform:translate(-50%,-20px)}
 body.locked #toast.show{transform:translate(-50%,0)}
@@ -886,6 +894,7 @@ function settingsHtml() {
 
   <div class="card"><h2>Izgled</h2><div class="skins" id="skinList"></div></div>
 
+  ${isMobile() && !isStandalone() ? `<div class="card"><h2>Aplikacija na početnom zaslonu</h2>${installHtml(false)}</div>` : ''}
   ${SERVER ? accountCardHtml() + backupCardHtml() : `  <div class="card"><h2>Obrada unosa (API)</h2>
     <div class="keyrow"><label class="f">API ključ<input data-s="apiKey" id="keyIn" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label>
     <button class="btn ghost sm" data-act="showkey" style="min-height:46px">Prikaži</button></div>
@@ -908,7 +917,7 @@ function settingsHtml() {
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button>
     <div class="diag"><span>Zapis zadnjih obrada (za prijavu greške)</span>
       <button class="btn sm ghost" data-act="diagcopy">Kopiraj za podršku</button></div></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 3.2</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 3.4</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -1668,7 +1677,7 @@ async function refreshAccount() {
 let loginState = {step:'email', email:'', busy:false, msg:'', wait:0};
 function showLogin(msg) {
   if (!SERVER) return;
-  loginState = {step:'email', email:loginState.email || auth?.email || '', busy:false, msg:msg || '', wait:0};
+  loginState = {step:shouldOfferInstall() ? 'install' : 'email', email:loginState.email || auth?.email || '', busy:false, msg:msg || '', wait:0};
   renderLogin(); $('#login').hidden = false; document.body.classList.add('locked');
 }
 function hideLogin() { $('#login').hidden = true; document.body.classList.remove('locked'); }
@@ -1677,7 +1686,9 @@ function renderLogin() {
   el.innerHTML = `<div class="lg-box">
     <img src="sdg-icon-192.png" alt="" class="lg-logo">
     <h1>SDG CalQuest</h1>
-    ${L.step === 'email' ? `
+    ${L.step === 'install' ? installHtml(true) : L.step === 'installed' ? `
+      <p class="muted">Aplikacija je instalirana. Otvori <b>CalQuest</b> s početnog zaslona i ondje se prijavi.</p>
+      <button class="linkbtn" data-act="instskip">Ili nastavi ovdje u pregledniku</button>` : L.step === 'email' ? `
       <p class="muted">Upiši e-mail adresu prijavljenu u SDG Gymu. Poslat ćemo ti kod za prijavu.</p>
       <form data-form="lgEmail"><input class="inp" id="lgEmail" type="email" inputmode="email" autocomplete="email" placeholder="ime@gmail.com" value="${esc(L.email)}" required>
       ${L.msg ? `<p class="lg-msg">${esc(L.msg)}</p>` : ''}
@@ -1730,6 +1741,49 @@ async function logout() {
   if (!confirm('Odjaviti se s ovog uređaja? Podaci ostaju na uređaju, a za ponovnu prijavu trebat će ti novi kod.')) return;
   try { await fetch(BACKEND_URL + '/auth/logout', {method:'POST', headers:{'authorization':'Bearer ' + auth.token}}); } catch (e) {}
   setAuth(null); account = null; showLogin();
+}
+
+/* ---------- instalacija na početni zaslon ---------- */
+const INST_KEY = 'calquest-install-skip';
+let bipEvent = null;   // Androidov događaj za instalaciju
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); bipEvent = e; if (loginState?.step === 'install' && !$('#login').hidden) renderLogin(); });
+window.addEventListener('appinstalled', () => { bipEvent = null; try { localStorage.setItem(INST_KEY, 'installed'); } catch (e) {} if (loginState?.step === 'install') { loginState.step = 'installed'; renderLogin(); } });
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true;
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isMobile = () => isIOS() || /Android/i.test(navigator.userAgent);
+function shouldOfferInstall() {
+  let skip = null; try { skip = localStorage.getItem(INST_KEY); } catch (e) {}
+  return isMobile() && !isStandalone() && !skip && !hasLocalData();
+}
+const SHARE_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-4px"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8"/></svg>';
+const ADD_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:-4px"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>';
+const MENU_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="vertical-align:-4px"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>';
+function installHtml(onLogin) {
+  const later = onLogin ? `<button class="linkbtn" data-act="instskip">Nastavi u pregledniku</button>` : '';
+  if (isIOS()) return `
+    <p class="muted">Za najbolje iskustvo dodaj CalQuest na početni zaslon – otvarat će se kao prava aplikacija.</p>
+    <ol class="inst">
+      <li>Dodirni ikonu <b>Dijeli</b> ${SHARE_ICON} na dnu Safarija <span class="muted">(na iPadu gore desno)</span>.</li>
+      <li>Pomakni se prema dolje i odaberi <b>Dodaj na početni zaslon</b> ${ADD_ICON}.</li>
+      <li>Dodirni <b>Dodaj</b>, pa otvori <b>CalQuest</b> s početnog zaslona i ondje se prijavi.</li></ol>
+    <p class="muted small">Važno: na iPhoneu se prijavi u aplikaciji s početnog zaslona, ne ovdje u Safariju – to su dva odvojena prostora za podatke.</p>${later}`;
+  if (bipEvent) return `
+    <p class="muted">Instaliraj CalQuest na početni zaslon – otvarat će se kao prava aplikacija, bez adresne trake.</p>
+    <button class="btn" data-act="instgo" style="width:100%">Instaliraj aplikaciju</button>${later}`;
+  return `
+    <p class="muted">Za najbolje iskustvo dodaj CalQuest na početni zaslon.</p>
+    <ol class="inst">
+      <li>Otvori izbornik preglednika ${MENU_ICON} <span class="muted">(gore desno)</span>.</li>
+      <li>Odaberi <b>Instaliraj aplikaciju</b> ili <b>Dodaj na početni zaslon</b>.</li>
+      <li>Otvori <b>CalQuest</b> s početnog zaslona.</li></ol>${later}`;
+}
+async function installGo() {
+  if (!bipEvent) return;
+  bipEvent.prompt();
+  const {outcome} = await bipEvent.userChoice.catch(() => ({}));
+  bipEvent = null;
+  if (outcome === 'accepted') { try { localStorage.setItem(INST_KEY, 'installed'); } catch (e) {} if (!$('#login').hidden) { loginState.step = 'installed'; renderLogin(); } else closeSheet(); }
+  else if (!$('#login').hidden) renderLogin();
 }
 
 /* ---------- šifrirana sigurnosna kopija ---------- */
@@ -1801,7 +1855,8 @@ async function sendKeyMail(manual) {
 function backupCardHtml() {
   const code = getBackupKey(), m = bkMeta();
   const when = m.at ? new Date(m.at).toLocaleString('hr-HR', {day:'numeric', month:'numeric', hour:'2-digit', minute:'2-digit'}) : null;
-  if (!code) return `<div class="card"><h2>Sigurnosna kopija</h2><p class="muted small" style="margin:0">Kopija još nije uključena.</p></div>`;
+  if (!code) return `<div class="card"><h2>Sigurnosna kopija</h2><p class="muted small" style="margin:0 0 12px">Kopija još nije uključena. Uključi je da se tvoji podaci automatski i šifrirano čuvaju za slučaj da promijeniš ili izgubiš mobitel.</p>
+    <button class="btn sm" data-act="bkenable">Uključi kopiju</button></div>`;
   return `<div class="card"><h2>Sigurnosna kopija</h2>
     <div class="acct-use" style="margin-top:0"><span>Zadnja kopija</span><b>${when || 'još nije napravljena'}</b></div>
     <p class="muted small" style="margin:10px 0 0">Ključ za kopiju – trebat će ti na novom mobitelu:</p>
@@ -1811,11 +1866,14 @@ function backupCardHtml() {
     <p class="muted small" style="margin:10px 0 0">Kopija se radi automatski i šifrirana je tvojim ključem. Bez ključa je nitko ne može otvoriti – ni trener.</p></div>`;
 }
 // nakon prijave: vrati postojeću kopiju ili uključi novu
-async function afterLogin() {
+async function afterLogin(manual) {
   if (!SERVER || !auth?.token || getBackupKey()) { backupNow(false); return; }
-  const {ok, j} = await bkFetch('/backup/info');
+  let res;
+  try { res = await bkFetch('/backup/info'); } catch (e) { if (manual) toast('Nema veze s poslužiteljem. Provjeri internet.'); return; }
+  const {ok, status, j} = res;
   if (ok) openRestore(j, false);
   else if (j.error === 'none') initBackup();
+  else if (manual) toast(status === 404 ? 'Server još ne podržava kopije – javi se treneru.' : (j.message || `Kopija nije uključena (greška ${status}).`), 5000);
 }
 async function initBackup() {
   const code = newBackupKey(); setBackupKey(code); setBkMeta({});
@@ -2152,12 +2210,15 @@ document.addEventListener('click', e => {
     case 'logout': logout(); break;
     case 'bknow': { el.disabled = true; el.textContent = 'Spremam…'; backupNow(true).then(ok => { toast(ok ? 'Kopija spremljena' : 'Kopija nije spremljena – provjeri internet'); render(); }); break; }
     case 'bkmail': sendKeyMail(true); break;
+    case 'bkenable': el.disabled = true; el.textContent = 'Uključujem…'; afterLogin(true).finally(() => { if (el.isConnected) { el.disabled = false; el.textContent = 'Uključi kopiju'; } }); break;
     case 'bkshow': { const k = $('#bkKey'); k.dataset.shown = k.dataset.shown ? '' : '1'; k.textContent = k.dataset.shown ? getBackupKey() : maskKey(getBackupKey()); el.textContent = k.dataset.shown ? 'Sakrij' : 'Prikaži'; break; }
     case 'bkcopy': copyText(getBackupKey()).then(ok => toast(ok ? 'Ključ kopiran' : 'Kopiranje nije uspjelo – prepiši ga ručno')); break;
     case 'bkrestore': openRestore(null, true); break;
     case 'rkgo': doRestore(); break;
     case 'rkfresh': startFresh(); break;
     case 'rkskip': closeSheet(); break;
+    case 'instgo': installGo(); break;
+    case 'instskip': try { localStorage.setItem(INST_KEY, 'skip'); } catch (e) {} loginState.step = 'email'; loginState.msg = ''; renderLogin(); break;
     case 'lgback': loginState.step = 'email'; loginState.msg = ''; renderLogin(); break;
     case 'lgresend': if (loginState.wait <= 0) loginSendCode(loginState.email); break;
     case 'diagcopy': {

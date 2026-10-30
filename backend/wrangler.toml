@@ -18,7 +18,7 @@ MAIL_FROM_NAME = "SDG CalQuest"
 binding = "DB"
 database_name = "calquest"
 # zamijeni ID-jem koji ti ispiše: npx wrangler d1 create calquest
-database_id = "UPISI-ID-BAZE-OVDJE"
+database_id = "d4b218c9-4f28-405b-a848-7f6335b02054"
 
 # Tajne (NE upisuj ih ovdje, nego naredbom: npx wrangler secret put IME):
 #   ANTHROPIC_API_KEY  – ključ s Claude Consolea (samo za server)
