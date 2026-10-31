@@ -53,8 +53,10 @@ export default {
       if (path === '/') return new Response('SDG CalQuest API radi.', {headers: {'content-type': 'text/plain; charset=utf-8'}});
       return withCors(json({error: 'not_found'}, 404), h);
     } catch (e) {
-      console.error(e);
-      return json({error: 'server', message: 'Greška na serveru. Pokušaj ponovno.'}, 500);
+      console.error(path, e);
+      const billing = path.startsWith('/billing/');
+      let cors = null; try { cors = corsHeaders(req, env); } catch (x) {}
+      return withCors(json({error: 'server', message: billing ? 'Plaćanje trenutno nije dostupno (' + (e.message || 'greška') + ')' : 'Greška na serveru. Pokušaj ponovno.'}, 500), cors || {});
     }
   },
 };
