@@ -567,6 +567,11 @@ async function admin(req, env, path) {
     if (!u) return json({error: 'Nema korisnika.'}, 404);
     await env.DB.prepare('UPDATE users SET plan = ? WHERE email = ?').bind(plan, email).run();
     let note = '';
+    if (plan === 'trial' && !(u.trial_until && Date.parse(u.trial_until) > Date.now())) {   // probno bez aktivnog datuma → kreće od danas
+      const st = await getSettings(env), until = new Date(Date.now() + st.trial_days * 864e5).toISOString();
+      await env.DB.prepare('UPDATE users SET trial_until = ? WHERE email = ?').bind(until, email).run();
+      note = `Probno razdoblje traje do ${fmtDate(until)}.`;
+    }
     if (u.plan === 'trial' && plan !== 'trial' && !u.stripe_sub) {   // prvi put odabrana cijena → javi korisniku
       const s = await getSettings(env), app = env.APP_URL || 'https://calquest.sdggym.com';
       const hi = u.name ? `Bok ${esc(u.name.split(' ')[0])},` : 'Bok,';
