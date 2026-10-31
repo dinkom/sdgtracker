@@ -362,6 +362,14 @@ body.locked{overflow:hidden}
 #login .lg-code{font-size:28px;letter-spacing:10px;font-variant-numeric:tabular-nums}
 #login .btn{min-height:52px;font-size:17px}
 #login .lg-msg{margin:0;color:var(--bad);font-size:14px}
+#login .lg-chk{justify-content:flex-start;text-align:left}
+.pay-st{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:99px;background:var(--surface);border:1px solid var(--line);margin:0 0 8px}
+.pay-st.ok{color:var(--good);border-color:currentColor}
+.pay-st.warn{color:var(--accent-ink, var(--accent));border-color:currentColor}
+.pay-st.bad{color:var(--bad);border-color:currentColor}
+.pay-card p,#sheet .pay-st ~ p{margin:0 0 10px}
+.pay-card .btn + .muted{margin-top:8px}
+.lg-msg{color:var(--bad);font-size:14px}
 #login .lg-links{display:flex;justify-content:space-between;margin-top:8px}
 #login .linkbtn:disabled{opacity:.45}
 .acct{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -895,7 +903,7 @@ function settingsHtml() {
   <div class="card"><h2>Izgled</h2><div class="skins" id="skinList"></div></div>
 
   ${isMobile() && !isStandalone() ? `<div class="card"><h2>Aplikacija na početnom zaslonu</h2>${installHtml(false)}</div>` : ''}
-  ${SERVER ? accountCardHtml() + backupCardHtml() : `  <div class="card"><h2>Obrada unosa (API)</h2>
+  ${SERVER ? billingCardHtml() + accountCardHtml() + backupCardHtml() : `  <div class="card"><h2>Obrada unosa (API)</h2>
     <div class="keyrow"><label class="f">API ključ<input data-s="apiKey" id="keyIn" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label>
     <button class="btn ghost sm" data-act="showkey" style="min-height:46px">Prikaži</button></div>
     <label class="f" style="margin-top:12px">Model za tekst i glas<select data-s="model">
@@ -917,7 +925,7 @@ function settingsHtml() {
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button>
     <div class="diag"><span>Zapis zadnjih obrada (za prijavu greške)</span>
       <button class="btn sm ghost" data-act="diagcopy">Kopiraj za podršku</button></div></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 3.4</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 3.5</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -1087,6 +1095,7 @@ async function callServer(body) {
   if (r.ok) { if (account) { account.today.requests++; } return j; }
   const m = j?.error?.message || j?.message || r.statusText;
   if (r.status === 401) { setAuth(null); showLogin(m); throw new Error(m); }
+  if (r.status === 402) { paywall(j.billing); const e = new Error(m); e.payment = true; throw e; }
   const err = new Error(m);
   if (r.status === 400 && /tool_choice/i.test(m)) err.toolChoice = true;
   else if (r.status === 529 || r.status === 500 || r.status === 502) err.message = 'Aplikacija je trenutno preopterećena. Pokušaj ponovno.';
@@ -1291,7 +1300,7 @@ async function processInput() {
     inp.value = ''; setPhoto(null); usedVoice = false;
     openConfirm(text, res, ph);
     if (pending) pending.voice = voice;
-  } catch (e) { toast(e.message, 4500); }
+  } catch (e) { if (!e.payment) toast(e.message, 4500); }
   finally { setBusy(false); }
 }
 
@@ -1508,7 +1517,7 @@ Izmjena: ${ask}`}]};
     anchorEntry();
     $('#eAsk').value = '';
     toast((x.objasnjenje ? x.objasnjenje + ' · ' : '') + 'provjeri i spremi', 3500);
-  } catch (e) { toast(e.message, 4500); }
+  } catch (e) { if (!e.payment) toast(e.message, 4500); }
   finally { btn.disabled = false; btn.textContent = 'Primijeni'; }
 }
 
@@ -1688,8 +1697,14 @@ function renderLogin() {
     <h1>SDG CalQuest</h1>
     ${L.step === 'install' ? installHtml(true) : L.step === 'installed' ? `
       <p class="muted">Aplikacija je instalirana. Otvori <b>CalQuest</b> s početnog zaslona i ondje se prijavi.</p>
-      <button class="linkbtn" data-act="instskip">Ili nastavi ovdje u pregledniku</button>` : L.step === 'email' ? `
-      <p class="muted">Upiši e-mail adresu prijavljenu u SDG Gymu. Poslat ćemo ti kod za prijavu.</p>
+      <button class="linkbtn" data-act="instskip">Ili nastavi ovdje u pregledniku</button>` : L.step === 'profile' ? `
+      <p class="muted">Još jedan korak – kako se zoveš?</p>
+      <form data-form="lgProfile"><input class="inp" id="lgName" type="text" autocomplete="given-name" maxlength="80" placeholder="Ime" value="${esc(L.name || '')}" required>
+      <label class="chk lg-chk"><input type="checkbox" id="lgMember" ${L.member ? 'checked' : ''}> Član sam SDG Gyma</label>
+      <p class="muted small" style="margin:0">${L.trial ? `Probno razdoblje traje do <b>${fmtD(L.trial)}</b> ` : ''}Članovi SDG Gyma imaju nižu mjesečnu cijenu.</p>
+      ${L.msg ? `<p class="lg-msg">${esc(L.msg)}</p>` : ''}
+      <button class="btn" type="submit" ${L.busy ? 'disabled' : ''}>${L.busy ? 'Spremam…' : 'Kreni'}</button></form>` : L.step === 'email' ? `
+      <p class="muted">Upiši svoj e-mail – poslat ćemo ti kod za prijavu. Novi korisnici prvi tjedan koriste CalQuest besplatno.</p>
       <form data-form="lgEmail"><input class="inp" id="lgEmail" type="email" inputmode="email" autocomplete="email" placeholder="ime@gmail.com" value="${esc(L.email)}" required>
       ${L.msg ? `<p class="lg-msg">${esc(L.msg)}</p>` : ''}
       <button class="btn" type="submit" ${L.busy ? 'disabled' : ''}>${L.busy ? 'Šaljem…' : 'Pošalji kod'}</button></form>`
@@ -1701,7 +1716,7 @@ function renderLogin() {
       <div class="lg-links"><button class="linkbtn" data-act="lgback">Promijeni e-mail</button>
         <button class="linkbtn" data-act="lgresend" ${L.wait > 0 ? 'disabled' : ''}>${L.wait > 0 ? `Novi kod za ${L.wait} s` : 'Pošalji novi kod'}</button></div>`}
   </div>`;
-  setTimeout(() => (L.step === 'email' ? $('#lgEmail') : $('#lgCode'))?.focus(), 50);
+  setTimeout(() => (L.step === 'email' ? $('#lgEmail') : L.step === 'profile' ? $('#lgName') : $('#lgCode'))?.focus(), 50);
 }
 let waitTimer = null;
 function startWait(sec) {
@@ -1734,8 +1749,94 @@ async function loginVerify(code) {
   L.busy = false;
   if (!ok) { L.msg = j.message || 'Prijava nije uspjela.'; if (j.error === 'expired' || j.error === 'too_many') L.step = 'code'; renderLogin(); return; }
   setAuth({token:j.token, email:j.email, name:j.name || ''});
+  if (j.new_user || !j.name) {   // novi korisnik: ime i članstvo
+    Object.assign(L, {step:'profile', msg:'', name:S().name || '', member:false, trial:j.trial_until || null});
+    renderLogin(); return;
+  }
+  finishLogin(j.name);
+}
+function finishLogin(name) {
   hideLogin(); render(); refreshAccount(); setTimeout(checkAch, 600); afterLogin();
-  toast(`Bok${j.name ? ', ' + j.name.split(' ')[0] : ''}! Prijava je uspjela.`);
+  toast(`Bok${name ? ', ' + name.split(' ')[0] : ''}! Prijava je uspjela.`);
+}
+async function saveProfile(name, member) {
+  const L = loginState; L.name = name; L.member = member; L.busy = true; L.msg = ''; renderLogin();
+  const r = await apiPost('/me/profile', {name, member_claim:member});
+  L.busy = false;
+  if (!r.ok) { L.msg = r.j.message || 'Spremanje nije uspjelo.'; renderLogin(); return; }
+  setAuth({...auth, name});
+  if (!S().name) { db.settings.name = name; persist(); }
+  finishLogin(name);
+}
+async function apiPost(path, body) {
+  let r;
+  try { r = await fetch(BACKEND_URL + path, {method:'POST', headers:{'content-type':'application/json', 'authorization':'Bearer ' + (auth?.token || '')}, body:JSON.stringify(body || {})}); }
+  catch (e) { return {ok:false, j:{message:'Nema veze s poslužiteljem. Provjeri internet.'}}; }
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401) { setAuth(null); showLogin(j.message); }
+  return {ok:r.ok, status:r.status, j};
+}
+const fmtD = iso => iso ? new Date(iso).toLocaleDateString('hr-HR', {day:'numeric', month:'numeric', year:'numeric'}) : '';
+const daysLeft = iso => Math.max(0, Math.ceil((Date.parse(iso) - Date.now()) / 864e5));
+
+/* ---------- pretplata ---------- */
+function billingStatusHtml(b, inSheet) {
+  if (!b) return '<p class="muted">Učitavam…</p>';
+  const price = b.price ? `<b>${b.price} €</b> mjesečno${b.plan === 'member' ? ' <span class="muted">(cijena za članove)</span>' : ''}` : '';
+  const sub = `<button class="btn" data-act="paygo" style="width:100%">Pretplati se${b.price ? ` · ${b.price} €/mj` : ''}</button>`;
+  const manage = `<button class="btn ghost" data-act="payportal" style="width:100%">Upravljaj pretplatom</button>`;
+  const soon = `<p class="muted small">Plaćanje u aplikaciji uskoro će biti dostupno.</p>`;
+  const ask = `<p class="muted small">Trener ti tijekom probnog razdoblja potvrđuje cijenu (članovi SDG Gyma plaćaju manje). Javit ćemo ti e-mailom kad bude spremno.</p>`;
+  const can = btn => b.payments_enabled ? btn : soon;
+  if (b.state === 'free') return `<div class="pay-st ok">Besplatno</div><p class="muted">Za tebe je CalQuest besplatan. Uživaj!</p>`;
+  if (b.state === 'subscribed') {
+    const head = b.sub_status === 'trialing' ? `<div class="pay-st ok">Pretplata uključena</div><p>Prva naplata: <b>${fmtD(b.trial_until)}</b> · ${price}</p>`
+      : b.cancel_at_end ? `<div class="pay-st warn">Otkazana</div><p>Pretplata vrijedi do <b>${fmtD(b.paid_until)}</b> i neće se obnoviti.</p>`
+      : `<div class="pay-st ok">Pretplata aktivna</div><p>${price}${b.paid_until ? ` · plaćeno do <b>${fmtD(b.paid_until)}</b>` : ''}</p>`;
+    return head + (b.sub_status === 'past_due' ? `<p class="lg-msg">Zadnja naplata nije uspjela. Provjeri karticu.</p>` : '') + manage;
+  }
+  if (b.state === 'paid') return `<div class="pay-st warn">Pretplata završava</div><p>Plaćeno do <b>${fmtD(b.paid_until)}</b>. Nakon toga obrada unosa se zaustavlja.</p>${b.plan_decided ? can(sub) : ''}`;
+  if (b.state === 'trial') {
+    const n = daysLeft(b.trial_until);
+    return `<div class="pay-st">Probno razdoblje</div><p>Besplatno do <b>${fmtD(b.trial_until)}</b> <span class="muted">(${n === 0 ? 'ističe danas' : n === 1 ? 'još 1 dan' : `još ${n} dana`})</span></p>
+      ${b.plan_decided ? `<p>Tvoja cijena: ${price}</p>${can(sub)}${b.payments_enabled && n > 2 ? `<p class="muted small">Ako se pretplatiš sada, prva naplata je tek kad istekne probno razdoblje.</p>` : ''}` : ask}`;
+  }
+  // isteklo
+  return `<div class="pay-st bad">${b.trial_until && !b.paid_until ? 'Probno razdoblje je isteklo' : 'Pretplata je istekla'}</div>
+    <p class="muted">Tvoji podaci ostaju na uređaju${inSheet ? '' : ' i možeš ih pregledavati'}, ali za obradu novih unosa treba pretplata.</p>
+    ${b.plan_decided ? (price ? `<p>Tvoja cijena: ${price}</p>` : '') + can(sub) : `<p class="muted small">Trener ti još nije potvrdio cijenu. Javi mu se ili pričekaj e-mail.</p>`}`;
+}
+function billingCardHtml() {
+  if (!account) return '';
+  return `<div class="card pay-card"><h2>Pretplata</h2>${billingStatusHtml(account.billing, false)}</div>`;
+}
+function paywall(b) {
+  if (b && account) account.billing = b;
+  openSheet(`<h2>Obrada je zaustavljena</h2>${billingStatusHtml(b || account?.billing, true)}
+    <button class="linkbtn" data-act="sheetclose" style="margin-top:6px">Zatvori</button>`);
+}
+let payBusy = false;
+async function payGo(path) {
+  if (payBusy) return; payBusy = true;
+  const btn = document.querySelector(`[data-act="${path === '/billing/portal' ? 'payportal' : 'paygo'}"]`);
+  if (btn) { btn.disabled = true; btn.dataset.t = btn.textContent; btn.textContent = 'Otvaram plaćanje…'; }
+  const r = await apiPost(path, {});
+  payBusy = false;
+  if (r.ok && r.j.url) { location.href = r.j.url; return; }
+  if (btn) { btn.disabled = false; btn.textContent = btn.dataset.t; }
+  toast(r.j.message || 'Plaćanje trenutno nije dostupno.', 4500);
+  if (r.j.error === 'free' || r.j.error === 'undecided') refreshAccount();
+}
+function billingReturn() {
+  const q = new URLSearchParams(location.search), b = q.get('billing');
+  if (!b) return;
+  history.replaceState(history.state, '', location.pathname + location.hash);
+  if (b === 'success') {
+    toast('Hvala! Pretplata je uključena.', 4500);
+    [1500, 5000, 12000].forEach(t => setTimeout(refreshAccount, t));   // webhook može kasniti par sekundi
+  } else if (b === 'cancel') toast('Plaćanje je prekinuto – ništa nije naplaćeno.', 4500);
+  else setTimeout(refreshAccount, 1500);
+  tab = 'postavke'; render();
 }
 async function logout() {
   if (!confirm('Odjaviti se s ovog uređaja? Podaci ostaju na uređaju, a za ponovnu prijavu trebat će ti novi kod.')) return;
@@ -2208,6 +2309,9 @@ document.addEventListener('click', e => {
     case 'showkey': { const k = $('#keyIn'); k.type = k.type === 'password' ? 'text' : 'password'; el.textContent = k.type === 'password' ? 'Prikaži' : 'Sakrij'; break; }
     case 'testkey': testKey(); break;
     case 'logout': logout(); break;
+    case 'paygo': payGo('/billing/checkout'); break;
+    case 'payportal': payGo('/billing/portal'); break;
+    case 'sheetclose': closeSheet(); break;
     case 'bknow': { el.disabled = true; el.textContent = 'Spremam…'; backupNow(true).then(ok => { toast(ok ? 'Kopija spremljena' : 'Kopija nije spremljena – provjeri internet'); render(); }); break; }
     case 'bkmail': sendKeyMail(true); break;
     case 'bkenable': el.disabled = true; el.textContent = 'Uključujem…'; afterLogin(true).finally(() => { if (el.isConnected) { el.disabled = false; el.textContent = 'Uključi kopiju'; } }); break;
@@ -2286,6 +2390,7 @@ $('#login').addEventListener('submit', e => {
   e.preventDefault();
   const f = e.target.dataset.form;
   if (f === 'lgEmail') { const v = $('#lgEmail').value; if (v.trim()) loginSendCode(v); }
+  if (f === 'lgProfile') { const v = $('#lgName').value.trim(); if (v) saveProfile(v, $('#lgMember').checked); }
   if (f === 'lgCode') { const v = $('#lgCode').value.replace(/\D/g, ''); if (v.length === 6) loginVerify(v); else { loginState.msg = 'Kod ima 6 znamenki.'; renderLogin(); } }
 });
 $('#login').addEventListener('input', e => { if (e.target.id === 'lgCode' && e.target.value.replace(/\D/g, '').length === 6 && !loginState.busy) loginVerify(e.target.value.replace(/\D/g, '')); });
@@ -2325,6 +2430,7 @@ render(); autosize(); fitPlaceholder();
 window.addEventListener('resize', fitPlaceholder);
 document.fonts?.ready?.then(fitPlaceholder);
 if (SERVER && S().apiKey) { db.settings.apiKey = ''; persist(); }   // ključ više ne živi na uređaju
+if (SERVER) billingReturn();
 if (SERVER && !auth?.token) showLogin(); else { setTimeout(checkAch, 600); refreshAccount(); if (SERVER) setTimeout(() => getBackupKey() ? backupNow(false) : afterLogin(), 1500); }
 function syncThemeColor() {
   const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();

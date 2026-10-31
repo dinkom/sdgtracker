@@ -1,5 +1,6 @@
 -- SDG CalQuest – baza (Cloudflare D1)
--- Pokreni jednom:  npx wrangler d1 execute calquest --remote --file schema.sql
+-- Za NOVU bazu:  npx wrangler d1 execute calquest --remote --file schema.sql
+-- Postojeću bazu nadograđuješ datotekama iz mape migrations/ (svaku jednom).
 
 CREATE TABLE IF NOT EXISTS users (
   email        TEXT PRIMARY KEY,          -- uvijek malim slovima
@@ -7,7 +8,16 @@ CREATE TABLE IF NOT EXISTS users (
   active       INTEGER NOT NULL DEFAULT 1, -- 1 = ima pristup, 0 = isključen
   daily_limit  INTEGER,                    -- NULL = zadani limit iz postavki
   note         TEXT NOT NULL DEFAULT '',
-  created_at   TEXT NOT NULL
+  created_at   TEXT NOT NULL,
+  plan         TEXT NOT NULL DEFAULT 'free',
+  trial_until  TEXT,
+  paid_until   TEXT,
+  member_claim INTEGER NOT NULL DEFAULT 0,
+  self_registered INTEGER NOT NULL DEFAULT 0,
+  stripe_customer TEXT,
+  stripe_sub   TEXT,
+  sub_status   TEXT,
+  cancel_at_end INTEGER NOT NULL DEFAULT 0
 );
 
 -- jedan uređaj po korisniku; čuva se samo sažetak (hash) tajnog ključa uređaja
@@ -28,7 +38,8 @@ CREATE TABLE IF NOT EXISTS codes (
   attempts     INTEGER NOT NULL DEFAULT 0,
   sent_at      INTEGER NOT NULL,
   sent_count   INTEGER NOT NULL DEFAULT 1,
-  window_start INTEGER NOT NULL
+  window_start INTEGER NOT NULL,
+  ip           TEXT
 );
 
 -- potrošnja po korisniku i danu
@@ -62,3 +73,25 @@ CREATE TABLE IF NOT EXISTS backups (
   updated_at   TEXT NOT NULL,
   key_mail_at  INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS payments (
+  id            TEXT PRIMARY KEY,          -- Stripe ID računa (invoice)
+  email         TEXT NOT NULL,
+  name          TEXT NOT NULL DEFAULT '',
+  amount_cents  INTEGER NOT NULL,
+  currency      TEXT NOT NULL DEFAULT 'eur',
+  plan          TEXT NOT NULL DEFAULT '',
+  period_start  TEXT,
+  period_end    TEXT,
+  paid_at       TEXT NOT NULL,
+  fiscalized    INTEGER NOT NULL DEFAULT 0,
+  fiscalized_at TEXT,
+  note          TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS payments_paid_at ON payments(paid_at);
+CREATE INDEX IF NOT EXISTS users_customer ON users(stripe_customer);
+
+INSERT OR IGNORE INTO settings (key, value) VALUES
+  ('trial_days', '7'),
+  ('price_member', '5'),
+  ('price_external', '9');

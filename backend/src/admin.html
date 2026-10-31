@@ -49,6 +49,23 @@ button:disabled{opacity:.5}
 .edit .btns{grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end}
 @media (max-width:640px){.edit{grid-template-columns:1fr}}
 .empty{text-align:center;color:var(--muted);padding:24px 0}
+.planrow{grid-column:2/4;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px}
+.planrow select{width:auto;padding:6px 8px;font-size:14px}
+.pill.trial{background:color-mix(in srgb,#5aa6e6 20%,transparent);color:#2f7fc1}
+.pill.paid{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
+.pill.due{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.pill.free{background:color-mix(in srgb,var(--accent) 25%,transparent);color:var(--accent-ink)}
+.pill.new{background:var(--accent);color:#111}
+.paybar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:10px}
+.paybar select{width:auto}
+.pay{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.pay:first-child{border-top:0}
+.pay small{display:block;color:var(--muted);font-size:12px}
+.pay b{font-variant-numeric:tabular-nums}
+.pay input{width:22px;height:22px;accent-color:var(--good)}
+.pay.done .who{opacity:.6}
+.paysum{display:flex;justify-content:space-between;gap:10px;font-size:14px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.warnbox{background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--text);border-radius:12px;padding:10px 12px;font-size:13px;margin-bottom:10px}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:12px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:calc(100% - 32px)}
 #toast.show{opacity:1}
 .muted{color:var(--muted)}.small{font-size:13px}
@@ -75,6 +92,25 @@ button:disabled{opacity:.5}
     <h2 id="usersTitle">Polaznici</h2>
     <input class="search" id="q" placeholder="Pretraži po imenu ili e-mailu">
     <div id="users"></div>
+  </div>
+
+  <div class="card">
+    <h2 id="payTitle">Uplate</h2>
+    <div id="payNote"></div>
+    <div class="paybar"><select id="payMonth"></select><button class="link" id="csv">Izvezi CSV</button></div>
+    <div id="pays"></div>
+  </div>
+
+  <div class="card">
+    <h2>Naplata i registracija</h2>
+    <form class="grid3" id="billForm" style="grid-template-columns:1fr 1fr 1fr 1fr auto">
+      <label>Probno razdoblje (dana)<input name="trial_days" type="number" min="0"></label>
+      <label>Cijena za članove (€)<input name="price_member" type="number" min="0" step="0.5"></label>
+      <label>Cijena za vanjske (€)<input name="price_external" type="number" min="0" step="0.5"></label>
+      <label>Registracija novih<select name="registration"><option value="open">otvorena</option><option value="closed">zatvorena</option></select></label>
+      <button class="primary" type="submit">Spremi</button>
+    </form>
+    <p class="muted small" style="margin:10px 0 0">Cijene ovdje služe za prikaz u aplikaciji – moraju odgovarati cijenama u Stripeu. Novi korisnik dobiva probno razdoblje; dok mu ne odabereš plan (Član, Vanjski ili Besplatno), ne može se pretplatiti. Kad odabereš cijenu, korisnik automatski dobiva e-mail s cijenom.</p>
   </div>
 
   <div class="card">
@@ -111,9 +147,25 @@ function ago(iso) {
   const h = Math.round(m / 60); if (h < 24) return `prije ${h} h`;
   const d = Math.round(h / 24); return d === 1 ? 'jučer' : `prije ${d} dana`;
 }
+const fdate = iso => iso ? new Date(iso).toLocaleDateString('hr-HR', {day:'numeric', month:'numeric', year:'numeric'}) : '–';
+const PLANS = [['trial', 'Probno'], ['member', 'Član'], ['external', 'Vanjski'], ['free', 'Besplatno']];
+function planSelect(u) {
+  const s = data.settings, lbl = {trial:'Probno', member:`Član · ${s.price_member} €`, external:`Vanjski · ${s.price_external} €`, free:'Besplatno'};
+  return `<select data-act="plan" aria-label="Plan">${PLANS.map(([v]) => `<option value="${v}" ${u.plan === v ? 'selected' : ''}>${lbl[v]}</option>`).join('')}</select>`;
+}
+function statusPill(u) {
+  const a = u.access || {};
+  if (u.plan === 'free') return '<span class="pill free">besplatno</span>';
+  if (u.sub_status === 'past_due') return '<span class="pill due">kasni naplata</span>';
+  if (u.sub_status === 'active') return `<span class="pill paid">${u.cancel_at_end ? 'otkazana – vrijedi do ' + fdate(u.paid_until) : 'pretplata aktivna'}</span>`;
+  if (u.sub_status === 'trialing') return `<span class="pill paid">pretplaćen · naplata od ${fdate(u.trial_until)}</span>`;
+  if (a.state === 'trial') return '<span class="pill trial">probno</span>';
+  if (a.state === 'paid') return `<span class="pill paid">plaćeno do ${fdate(u.paid_until)}</span>`;
+  return '<span class="pill due">bez pretplate</span>';
+}
 const device = ua => !ua ? '' : /iPhone|iPad/.test(ua) ? 'iPhone' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : 'uređaj';
 async function load() {
-  try { data = await api('overview'); render(); }
+  try { data = await api('overview'); render(); if (pay) renderPays(); }
   catch (e) { toast(e.message); }
 }
 function render() {
@@ -122,7 +174,12 @@ function render() {
     <div class="tile"><span>Aktivni polaznici</span><b>${act}</b> <span style="display:inline">/ ${data.users.length}</span></div>
     <div class="tile"><span>Obrade danas</span><b>${fmt(t.today_requests)}</b></div>
     <div class="tile"><span>Trošak danas</span><b>$${fmt(t.today_cost, 2)}</b></div>
-    <div class="tile"><span>Trošak ovaj mjesec</span><b>$${fmt(t.month_cost, 2)}</b></div>`;
+    <div class="tile"><span>Trošak ovaj mjesec</span><b>$${fmt(t.month_cost, 2)}</b></div>
+    <div class="tile"><span>Prihod ovaj mjesec</span><b>${fmt(t.month_cents / 100, 2)} €</b></div>
+    <div class="tile"><span>Uplata ovaj mjesec</span><b>${fmt(t.month_count)}</b></div>
+    <div class="tile"><span>Za fiskalizirati</span><b style="color:${t.unfiscalized_all ? 'var(--bad)' : 'inherit'}">${fmt(t.unfiscalized_all)}</b></div>
+    <div class="tile"><span>Pretplatnici</span><b>${data.users.filter(u => ['active', 'past_due'].includes(u.sub_status)).length}</b></div>`;
+  const bf = $('#billForm'); if (!bf.dataset.filled) { for (const k of ['trial_days', 'price_member', 'price_external', 'registration']) bf[k].value = s[k]; bf.dataset.filled = 1; }
   const f = $('#setForm'); if (!f.dataset.filled) { f.text_model.value = s.text_model; f.photo_model.value = s.photo_model; f.daily_limit.value = s.daily_limit; f.dataset.filled = 1; }
   const q = $('#q').value.trim().toLowerCase();
   const list = data.users.filter(u => !q || u.email.includes(q) || (u.name || '').toLowerCase().includes(q));
@@ -132,12 +189,14 @@ function render() {
     const lim = u.daily_limit ?? s.daily_limit, atLimit = u.today_requests >= lim;
     return `<div class="user ${u.active ? '' : 'off'}" data-email="${esc(u.email)}">
       <button class="sw ${u.active ? 'on' : ''}" data-act="toggle" title="${u.active ? 'Isključi pristup' : 'Uključi pristup'}" aria-label="Pristup"></button>
-      <div class="who"><b>${esc(u.name || u.email)}</b>${u.name ? `<small>${esc(u.email)}</small>` : ''}${u.note ? `<small>${esc(u.note)}</small>` : ''}</div>
+      <div class="who"><b>${esc(u.name || u.email)}${u.plan === 'trial' && u.self_registered && !u.name ? ' <span class="pill new">novi</span>' : ''}</b>${u.name ? `<small>${esc(u.email)}</small>` : ''}${u.note ? `<small>${esc(u.note)}</small>` : ''}</div>
       <span class="pill ${u.active ? 'on' : ''}">${u.active ? 'aktivan' : 'isključen'}</span>
       <div class="meta"><span>danas <b>${u.today_requests}/${lim}</b>${u.today_photos ? ` (📷 ${u.today_photos})` : ''} ${atLimit ? '<span class="pill limit">limit</span>' : ''}</span>
         <span>30 dana <b>${fmt(u.d30_requests)}</b> · <b>$${fmt(u.d30_cost, 2)}</b></span>
         <span>uređaj: <b>${u.last_seen ? `${device(u.user_agent)} · ${ago(u.last_seen)}` : 'nije prijavljen'}</b></span>
         <span>kopija: <b>${u.backup_at ? ago(u.backup_at) : 'nema'}</b></span></div>
+      <div class="planrow">${planSelect(u)} ${statusPill(u)} ${u.member_claim ? '<span class="pill">kaže: član</span>' : u.self_registered ? '<span class="pill">kaže: nije član</span>' : ''}
+        ${u.plan === 'trial' ? `<span class="muted">do ${fdate(u.trial_until)}</span> <button class="link" data-act="trial">+7 dana</button>` : ''}</div>
       <div class="acts"><button class="link" data-act="edit">Uredi</button>${u.last_seen ? `<button class="link" data-act="logout">Odjavi uređaj</button>` : ''}<button class="link" data-act="del" style="color:var(--bad)">Obriši</button></div>
       ${editing === u.email ? `<form class="edit" data-act="save">
         <label>Ime<input name="name" value="${esc(u.name)}"></label>
@@ -153,11 +212,19 @@ $('#users').addEventListener('click', async e => {
   try {
     if (act === 'toggle') { await api('user/active', {email:u.email, active:!u.active}); toast(u.active ? `${u.name || u.email}: pristup isključen` : `${u.name || u.email}: pristup uključen`); }
     if (act === 'edit') { editing = editing === u.email ? null : u.email; render(); return; }
+    if (act === 'plan') return;
+    if (act === 'trial') { await api('user/trial', {email:u.email, days:7}); toast('Probno produljeno za 7 dana'); }
     if (act === 'cancel') { editing = null; render(); return; }
     if (act === 'logout') { if (!confirm(`Odjaviti uređaj za ${u.name || u.email}? Morat će se ponovno prijaviti kodom.`)) return; await api('user/logout', {email:u.email}); toast('Uređaj odjavljen'); }
     if (act === 'del') { if (!confirm(`Trajno obrisati ${u.name || u.email}? (Podaci na njegovom mobitelu ostaju, ali više se ne može prijaviti.)`)) return; await api('user/delete', {email:u.email}); toast('Obrisano'); }
     load();
   } catch (err) { toast(err.message); }
+});
+$('#users').addEventListener('change', async e => {
+  const sel = e.target.closest('select[data-act="plan"]'); if (!sel) return;
+  const u = data.users.find(x => x.email === sel.closest('.user').dataset.email);
+  try { const r = await api('user/plan', {email:u.email, plan:sel.value}); toast(r.note || 'Plan spremljen'); load(); }
+  catch (err) { toast(err.message); load(); }
 });
 $('#users').addEventListener('submit', async e => {
   e.preventDefault();
@@ -178,9 +245,47 @@ $('#setForm').addEventListener('submit', async e => {
   try { await api('settings', {text_model:f.text_model.value, photo_model:f.photo_model.value, daily_limit:f.daily_limit.value}); toast('Postavke spremljene'); load(); }
   catch (err) { toast(err.message); }
 });
+$('#billForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target;
+  try { await api('settings', {trial_days:f.trial_days.value, price_member:f.price_member.value, price_external:f.price_external.value, registration:f.registration.value}); toast('Spremljeno'); load(); }
+  catch (err) { toast(err.message); }
+});
+/* uplate */
+let pay = null;
+async function loadPays(month) {
+  try { pay = await api('payments' + (month ? '?month=' + month : '')); renderPays(); } catch (e) { toast(e.message); }
+}
+const monthName = m => { const [y, mm] = m.split('-'); return ['siječanj','veljača','ožujak','travanj','svibanj','lipanj','srpanj','kolovoz','rujan','listopad','studeni','prosinac'][+mm - 1] + ' ' + y; };
+function renderPays() {
+  const sel = $('#payMonth'), months = pay.months.map(x => x.month);
+  if (!months.includes(pay.month)) months.unshift(pay.month);
+  sel.innerHTML = months.map(m => { const x = pay.months.find(y => y.month === m); return `<option value="${m}" ${m === pay.month ? 'selected' : ''}>${monthName(m)}${x ? ` · ${fmt(x.cents / 100, 2)} €${x.unfiscalized ? ` · ${x.unfiscalized} za fisk.` : ''}` : ''}</option>`; }).join('');
+  $('#payNote').innerHTML = data && !data.payments_enabled ? `<div class="warnbox">Stripe još nije spojen – uplate će se ovdje pojaviti kad postaviš Stripe (vidi UPUTE.md).</div>` : '';
+  const list = pay.payments, total = list.reduce((a, p) => a + p.amount_cents, 0), done = list.filter(p => p.fiscalized).length;
+  $('#payTitle').textContent = `Uplate · ${monthName(pay.month)}`;
+  $('#pays').innerHTML = (list.length ? list.map(p => `<label class="pay ${p.fiscalized ? 'done' : ''}">
+      <input type="checkbox" data-id="${esc(p.id)}" ${p.fiscalized ? 'checked' : ''} title="Fiskalizirano">
+      <span class="who"><b>${esc(p.name || p.email)}</b><small>${esc(p.email)} · ${fdate(p.paid_at)} · ${p.plan === 'member' ? 'član' : p.plan === 'external' ? 'vanjski' : esc(p.plan)} · razdoblje ${fdate(p.period_start)}–${fdate(p.period_end)}</small></span>
+      <b>${fmt(p.amount_cents / 100, 2)} €</b></label>`).join('') : `<div class="empty">Nema uplata u ovom mjesecu.</div>`)
+    + (list.length ? `<div class="paysum"><span>Ukupno <b>${fmt(total / 100, 2)} €</b> · ${list.length} uplata</span><span>Fiskalizirano <b>${done}/${list.length}</b></span></div>` : '');
+}
+$('#payMonth').addEventListener('change', e => loadPays(e.target.value));
+$('#pays').addEventListener('change', async e => {
+  const cb = e.target.closest('input[type=checkbox]'); if (!cb) return;
+  try { await api('payment/fiscalized', {id:cb.dataset.id, fiscalized:cb.checked}); const p = pay.payments.find(x => x.id === cb.dataset.id); p.fiscalized = cb.checked ? 1 : 0; renderPays(); load(); toast(cb.checked ? 'Označeno kao fiskalizirano' : 'Oznaka uklonjena'); }
+  catch (err) { toast(err.message); cb.checked = !cb.checked; }
+});
+$('#csv').addEventListener('click', () => {
+  if (!pay?.payments.length) { toast('Nema uplata za izvoz'); return; }
+  const rows = [['Datum uplate', 'Ime', 'E-mail', 'Iznos (EUR)', 'Plan', 'Razdoblje od', 'Razdoblje do', 'Fiskalizirano', 'Stripe ID']]
+    .concat(pay.payments.map(p => [fdate(p.paid_at), p.name, p.email, (p.amount_cents / 100).toFixed(2).replace('.', ','), p.plan, fdate(p.period_start), fdate(p.period_end), p.fiscalized ? 'da' : 'ne', p.id]));
+  const csv = '\ufeff' + rows.map(r => r.map(x => `"${String(x ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'})); a.download = `calquest-uplate-${pay.month}.csv`; a.click();
+});
 $('#q').addEventListener('input', render);
 $('#reload').addEventListener('click', load);
-load();
+load(); loadPays();
 </script>
 </body>
 </html>

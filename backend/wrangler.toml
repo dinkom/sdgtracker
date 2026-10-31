@@ -13,6 +13,9 @@ fallthrough = false
 ALLOWED_ORIGINS = "https://calquest.sdggym.com"
 MAIL_FROM = "calquest@sdggym.com"
 MAIL_FROM_NAME = "SDG CalQuest"
+STRIPE_PRICE_MEMBER = "price_1UWQ28FLdxUaxuAGyGIrXFrF"
+STRIPE_PRICE_EXTERNAL = "price_1UWQ28FLdxUaxuAGvEJNjKMM"
+ADMIN_EMAIL = "sdg.zagreb@gmail.com"
 
 [[d1_databases]]
 binding = "DB"
