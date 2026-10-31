@@ -1,0 +1,10 @@
+/* SDG CalQuest – skin: TAMNI (uvijek taman, crna i žuta kao nova ikona)
+   Bira se u Profilu → Izgled. Ne ovisi o postavci svijetlo/tamno na mobitelu. */
+:root,:root:root{
+  --bg:#0c0c0b;--surface:#181715;--surface2:#24221f;--text:#f4f1ea;--muted:#a19a8f;--line:#2e2b27;
+  --accent:#e7c640;--accent-ink:#f0d260;--accent-soft:#2f2810;--on-accent:#111;
+  --good:#3cc184;--warn:#e9ad37;--bad:#ff6b6b;
+  --pc:#5aa6e6;--cc:#f08a52;--fc:#b98ae0;
+  --shadow:none;
+  color-scheme:dark;
+}
