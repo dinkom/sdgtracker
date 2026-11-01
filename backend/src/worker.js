@@ -503,6 +503,11 @@ async function stripeWebhook(req, env, ctx) {
   return json({received: true});
 }
 
+function htmlToText(h) {
+  return String(h).replace(/<a [^>]*href="([^"]+)"[^>]*>([^<]*)<\/a>/g, '$2: $1').replace(/<\/(p|tr|h\d)>|<br\s*\/?>/g, '\n').replace(/<\/td>/g, ' ')
+    .replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, ' ').replace(/\n\s*\n\s*/g, '\n\n').trim();
+}
 async function notifyAdmin(env, subject, html) { return mailTo(env, env.ADMIN_EMAIL, subject, html); }
 async function mailTo(env, to, subject, html) {
   if (env.DEV_MODE === '1' || !to || !env.BREVO_API_KEY) { console.log('[mail]', to, subject); return; }
@@ -510,7 +515,10 @@ async function mailTo(env, to, subject, html) {
     const r = await fetch('https://api.brevo.com/v3/smtp/email', {method: 'POST',
       headers: {'api-key': env.BREVO_API_KEY, 'content-type': 'application/json', 'accept': 'application/json'},
       body: JSON.stringify({sender: {name: env.MAIL_FROM_NAME || 'SDG CalQuest', email: env.MAIL_FROM}, to: [{email: to}],
-        subject: `CalQuest · ${subject}`, htmlContent: `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:520px;color:#1c1a17">${html}</div>`})});
+        subject: to === env.ADMIN_EMAIL ? `CalQuest · ${subject}` : subject,
+        ...(to !== env.ADMIN_EMAIL && env.ADMIN_EMAIL ? {replyTo: {email: env.ADMIN_EMAIL, name: 'SDG Gym'}} : {}),
+        htmlContent: `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:520px;color:#1c1a17">${html}</div>`,
+        textContent: htmlToText(html)})});
     if (!r.ok) console.error('Brevo admin', r.status, await r.text());
   } catch (e) { console.error('notifyAdmin', e); }
 }
