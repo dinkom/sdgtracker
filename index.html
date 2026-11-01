@@ -160,6 +160,8 @@ body.locked{overflow:hidden}
 .flash{animation:flash 1.2s}
 @keyframes flash{0%{box-shadow:0 0 0 2px var(--accent)}100%{box-shadow:0 0 0 2px transparent}}
 .sheet h3{margin:0 0 6px;font-size:20px}
+.vague{background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;padding:10px 12px;margin:0 0 12px;font-size:14px}
+.vague b{display:block;margin-bottom:2px}.vague p{margin:0 0 4px;color:var(--text)}.vague .linkbtn{padding:0;font-size:14px;margin:4px 0 0}
 .quote{font-size:14px;color:var(--muted);background:var(--surface2);border-radius:12px;padding:10px 12px;margin:8px 0 12px;display:flex;gap:8px;justify-content:space-between;align-items:flex-start}
 .quote button{border:0;background:none;color:var(--accent-ink);font-weight:650;font-size:13px;white-space:nowrap;padding:0}
 .ci{border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-bottom:10px}
@@ -925,7 +927,7 @@ function settingsHtml() {
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button>
     <div class="diag"><span>Zapis zadnjih obrada (za prijavu greške)</span>
       <button class="btn sm ghost" data-act="diagcopy">Kopiraj za podršku</button></div></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 3.6</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 3.7</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -1019,6 +1021,7 @@ HRANA
 - jedinica: "ml" za pića i tekućine (mlijeko, sok, shake, jogurt za piće, pivo, vino), inače "g". Polje grami tada sadrži mililitre.
 - obrok: doručak, ručak, večera ili užina – prema tekstu, a ako nije rečeno, prema vremenu unosa.
 - sigurnost: "niska" kad je porcija ili sastav vrlo nejasan, "srednja" za uobičajene procjene, "visoka" kad su grami ili proizvod jasno navedeni.
+- kolicina_pretpostavljena: true ako korisnik za tu namirnicu NIJE naveo nikakvu količinu ni veličinu porcije (ni grame, ni komade, ni opis poput "tanjur", "pola tanjura", "šaka", "žlica", "zdjelica", "mali/veliki") pa si uzeo prosječnu porciju; inače false. Za spremljene obroke, namirnice čija se porcija procjenjuje s fotografije i deklaracije s navedenom količinom stavi false.
 
 FOTOGRAFIJA
 - Ako je priložena fotografija obroka, prepoznaj namirnice i procijeni porcije prema vizualnim referencama (veličina tanjura ~26 cm, pribor, ruka, pakiranje).
@@ -1065,7 +1068,8 @@ const TOOL = {
       kcal:{type:'number', description:'Ukupne kcal stavke; za aktivnost neto potrošnja'},
       proteini:{type:'number'}, ugljikohidrati:{type:'number'}, masti:{type:'number'},
       obrok:{type:'string', enum:['doručak', 'ručak', 'večera', 'užina']},
-      sigurnost:{type:'string', enum:['visoka', 'srednja', 'niska']}
+      sigurnost:{type:'string', enum:['visoka', 'srednja', 'niska']},
+      kolicina_pretpostavljena:{type:'boolean', description:'true ako korisnik nije naveo nikakvu količinu za ovu namirnicu pa je uzeta prosječna porcija'}
     }, required:['vrsta', 'naziv', 'kcal']}},
     koraci:{type:'number', description:'Ukupno stanje koraka za dan, samo ako je korisnik spomenuo korake'},
     napomena:{type:'string'}
@@ -1092,7 +1096,7 @@ async function callServer(body) {
     throw new Error(e.name === 'AbortError' ? 'Zahtjev je predugo trajao. Pokušaj ponovno.' : 'Nema veze s poslužiteljem. Provjeri internet.');
   } finally { clearTimeout(timer); }
   const j = await r.json().catch(() => ({}));
-  if (r.ok) { if (account) { account.today.requests++; } return j; }
+  if (r.ok) { if (account?.today) account.today.requests++; return j; }
   const m = j?.error?.message || j?.message || r.statusText;
   if (r.status === 401) { setAuth(null); showLogin(m); throw new Error(m); }
   if (r.status === 402) { paywall(j.billing); const e = new Error(m); e.payment = true; throw e; }
@@ -1242,7 +1246,7 @@ async function askClaude(text, ph) {
   if (invalid) {
     try {
       const jb = {max_tokens:Math.max(body.max_tokens, 6000), messages:body.messages,
-        system:body.system + '\n\nOVAJ PUT NEMA ALATA. Odgovori ISKLJUČIVO jednim JSON objektom, bez ikakvog drugog teksta, oblika: {"stavke":[{"vrsta":"hrana|aktivnost","naziv":"...","kolicina":"...","grami":0,"jedinica":"g","minute":0,"met":0,"kcal":0,"proteini":0,"ugljikohidrati":0,"masti":0,"obrok":"ručak","sigurnost":"srednja"}],"koraci":null,"napomena":"..."}'};
+        system:body.system + '\n\nOVAJ PUT NEMA ALATA. Odgovori ISKLJUČIVO jednim JSON objektom, bez ikakvog drugog teksta, oblika: {"stavke":[{"vrsta":"hrana|aktivnost","naziv":"...","kolicina":"...","grami":0,"jedinica":"g","minute":0,"met":0,"kcal":0,"proteini":0,"ugljikohidrati":0,"masti":0,"obrok":"ručak","sigurnost":"srednja","kolicina_pretpostavljena":false}],"koraci":null,"napomena":"..."}'};
       const j = await callClaude(jb, model);
       const out = normalizeEntry(toolResult(j, null));
       if (out && (out.stavke.length || out.koraci != null)) return {...out, _model:j.model || model};
@@ -1309,7 +1313,7 @@ function normItem(x) {
   const it = {kind:act ? 'activity' : 'food', name:x.naziv || '', amount:x.kolicina || '',
     grams:act ? null : (+x.grami ? Math.round(+x.grami) : null), unit:x.jedinica === 'ml' ? 'ml' : 'g', minutes:act ? (+x.minute ? Math.round(+x.minute) : null) : null,
     kcal:Math.round(+x.kcal || 0), p:act ? 0 : r1(x.proteini), c:act ? 0 : r1(x.ugljikohidrati), f:act ? 0 : r1(x.masti),
-    meal:act ? '' : (MEALS.includes(x.obrok) ? x.obrok : mealByTime()), conf:x.sigurnost || ''};
+    meal:act ? '' : (MEALS.includes(x.obrok) ? x.obrok : mealByTime()), conf:x.sigurnost || '', assumed:!act && (x.kolicina_pretpostavljena === true || x.kolicina_pretpostavljena === 'true')};
   if (act) {
     it.met = +x.met || 0;
     const w = weightAt(cur) || weightAt(todayKey()) || 80;
@@ -1331,7 +1335,7 @@ function ciHtml(it, i) {
   return `<div class="ci ${food ? '' : 'act'}" data-i="${i}">
     <div class="ci-top"><input class="ci-name" data-f="name" value="${esc(it.name)}" aria-label="Naziv">
       <button class="x" data-act="cidel" data-i="${i}" aria-label="Ukloni">×</button></div>
-    <div class="ci-sub">${food ? '' : 'aktivnost · '}${esc(it.amount)}${it.conf === 'niska' ? '<span class="tag warn">gruba procjena</span>' : ''}</div>
+    <div class="ci-sub">${food ? '' : 'aktivnost · '}${esc(it.amount)}${food && it.assumed && !pending?.photo ? '<span class="tag warn">prosječna porcija</span>' : it.conf === 'niska' ? '<span class="tag warn">gruba procjena</span>' : ''}</div>
     <div class="ci-fields">
       ${food ? `<label><input data-f="grams" type="number" inputmode="decimal" value="${it.grams ?? ''}" placeholder="–"><select data-f="unit" class="unit">${['g','ml'].map(u => `<option ${u === (it.unit || 'g') ? 'selected' : ''}>${u}</option>`).join('')}</select></label>`
              : `<label><input data-f="minutes" type="number" inputmode="numeric" value="${it.minutes ?? ''}" placeholder="–"><span>min</span></label>`}
@@ -1354,6 +1358,9 @@ function renderConfirm() {
       <div class="btns"><button class="btn ghost" data-act="close">Zatvori</button><button class="btn" data-act="retext">Ispravi tekst</button></div>`;
     openSheet(h); return;
   }
+  const vague = !p.photo && p.items.filter(i => i.kind === 'food' && i.assumed).length;
+  if (vague) h += `<div class="vague"><b>Količine nisu navedene</b><p>Za ${vague === 1 ? 'označenu namirnicu uzeta je' : 'označene namirnice uzete su'} prosječne porcije. Za točniji izračun okvirno reci koliko je bilo, npr. „pola tanjura riže“, „veliki tanjur“, „dvije šake“ ili „150 g piletine“, ili sam upiši grame ispod.</p>
+    <button class="linkbtn" data-act="retext">Ispravi opis</button></div>`;
   if (hasFood) h += `<label class="f">Obrok<select id="cMeal">${MEALS.map(m => `<option ${m === p.meal ? 'selected' : ''}>${m}</option>`).join('')}</select></label>`;
   if (p.steps != null) h += `<div class="ci act"><div class="ci-top"><b style="flex:1">Koraci danas</b>
       <button class="x" data-act="cistdel" aria-label="Ukloni">×</button></div>
