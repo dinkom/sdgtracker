@@ -1354,12 +1354,12 @@ function renderConfirm() {
   if (p.note) h += `<p class="muted small" style="margin:-4px 0 10px">${esc(p.note)}</p>`;
   if (p.model && !SERVER) h += `<p class="muted small" style="margin:-6px 0 10px;text-align:right">Obradio: ${esc(MODEL_NAMES[p.model] || p.model)}</p>`;
   if (!p.items.length && p.steps == null) {
-    h += `<div class="empty">Nisam prepoznao hranu ni aktivnost.</div>
+    h += `<div class="empty">U unosu nije prepoznata ni hrana ni aktivnost.</div>
       <div class="btns"><button class="btn ghost" data-act="close">Zatvori</button><button class="btn" data-act="retext">Ispravi tekst</button></div>`;
     openSheet(h); return;
   }
   const vague = !p.photo && p.items.filter(i => i.kind === 'food' && i.assumed).length;
-  if (vague) h += `<div class="vague"><b>Količine nisu navedene</b><p>Za ${vague === 1 ? 'označenu namirnicu uzeta je' : 'označene namirnice uzete su'} prosječne porcije. Za točniji izračun okvirno reci koliko je bilo, npr. „pola tanjura riže“, „veliki tanjur“, „dvije šake“ ili „150 g piletine“, ili sam upiši grame ispod.</p>
+  if (vague) h += `<div class="vague"><b>Količine nisu navedene</b><p>${vague === 1 ? 'Za označenu namirnicu uzeta je prosječna porcija' : 'Za označene namirnice uzete su prosječne porcije'}. Za točniji izračun navedi okvirne količine, npr. „pola tanjura riže“, „dvije šake“, „tri žlice“, „pola šalice“, „150 g piletine“, ili ${G('sam', 'sama')} upiši grame ispod.</p>
     <button class="linkbtn" data-act="retext">Ispravi opis</button></div>`;
   if (hasFood) h += `<label class="f">Obrok<select id="cMeal">${MEALS.map(m => `<option ${m === p.meal ? 'selected' : ''}>${m}</option>`).join('')}</select></label>`;
   if (p.steps != null) h += `<div class="ci act"><div class="ci-top"><b style="flex:1">Koraci danas</b>
@@ -1707,7 +1707,7 @@ function renderLogin() {
       <button class="linkbtn" data-act="instskip">Ili nastavi ovdje u pregledniku</button>` : L.step === 'profile' ? `
       <p class="muted">Još jedan korak – kako se zoveš?</p>
       <form data-form="lgProfile"><input class="inp" id="lgName" type="text" autocomplete="given-name" maxlength="80" placeholder="Ime" value="${esc(L.name || '')}" required>
-      <label class="chk lg-chk"><input type="checkbox" id="lgMember" ${L.member ? 'checked' : ''}> Član sam SDG Gyma</label>
+      <label class="chk lg-chk"><input type="checkbox" id="lgMember" ${L.member ? 'checked' : ''}> Član/ica sam SDG Gyma</label>
       <p class="muted small" style="margin:0">${L.trial ? `Probno razdoblje traje do <b>${fmtD(L.trial)}</b> ` : ''}Članovi SDG Gyma imaju nižu mjesečnu cijenu.</p>
       ${L.msg ? `<p class="lg-msg">${esc(L.msg)}</p>` : ''}
       <button class="btn" type="submit" ${L.busy ? 'disabled' : ''}>${L.busy ? 'Spremam…' : 'Kreni'}</button></form>` : L.step === 'email' ? `
@@ -2234,7 +2234,7 @@ function nextFx() { const it = fxQueue.shift(); if (it) showFx(it); else { $('#a
 function weightPlausible(v) {
   const tr = trendNow();
   if (tr == null || Math.abs(v - tr) <= 5) return true;
-  return confirm(`Upisano ${fmt(v, 1)} kg, a tvoj trend je ${fmt(tr, 1)} kg (razlika ${fmt(Math.abs(v - tr), 1)} kg). Jesi li siguran da je to točno?`);
+  return confirm(`Upisano ${fmt(v, 1)} kg, a tvoj trend je ${fmt(tr, 1)} kg (razlika ${fmt(Math.abs(v - tr), 1)} kg). Jesi li ${G('siguran', 'sigurna')} da je to točno?`);
 }
 
 /* ---------- events ---------- */
