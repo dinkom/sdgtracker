@@ -160,8 +160,9 @@ body.locked{overflow:hidden}
 .flash{animation:flash 1.2s}
 @keyframes flash{0%{box-shadow:0 0 0 2px var(--accent)}100%{box-shadow:0 0 0 2px transparent}}
 .sheet h3{margin:0 0 6px;font-size:20px}
-.vague{background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;padding:10px 12px;margin:0 0 12px;font-size:14px}
-.vague b{display:block;margin-bottom:2px}.vague p{margin:0 0 4px;color:var(--text)}.vague .linkbtn{padding:0;font-size:14px;margin:4px 0 0}
+.vague{display:flex;gap:10px;align-items:flex-start;background:color-mix(in srgb,var(--warn) 13%,var(--surface));border:1.5px solid var(--warn);border-left-width:6px;border-radius:12px;padding:11px 12px;margin:0 0 12px;font-size:14px}
+.vague svg{flex:none;width:24px;height:24px;color:var(--warn);margin-top:1px}
+.vague b{display:block;margin-bottom:2px;color:var(--warn);font-size:15px}.vague p{margin:0 0 4px;color:var(--text)}.vague .linkbtn{padding:0;font-size:14px;margin:4px 0 0;color:var(--warn);font-weight:700}
 .quote{font-size:14px;color:var(--muted);background:var(--surface2);border-radius:12px;padding:10px 12px;margin:8px 0 12px;display:flex;gap:8px;justify-content:space-between;align-items:flex-start}
 .quote button{border:0;background:none;color:var(--accent-ink);font-weight:650;font-size:13px;white-space:nowrap;padding:0}
 .ci{border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-bottom:10px}
@@ -1359,8 +1360,8 @@ function renderConfirm() {
     openSheet(h); return;
   }
   const vague = !p.photo && p.items.filter(i => i.kind === 'food' && i.assumed).length;
-  if (vague) h += `<div class="vague"><b>Količine nisu navedene</b><p>${vague === 1 ? 'Za označenu namirnicu uzeta je prosječna porcija' : 'Za označene namirnice uzete su prosječne porcije'}. Za točniji izračun navedi okvirne količine, npr. „pola tanjura riže“, „dvije šake“, „tri žlice“, „pola šalice“, „150 g piletine“, ili ${G('sam', 'sama')} upiši grame ispod.</p>
-    <button class="linkbtn" data-act="retext">Ispravi opis</button></div>`;
+  if (vague) h += `<div class="vague" role="alert"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3z" fill="currentColor"/><path d="M12 10v5" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="18" r="1.4" fill="#fff"/></svg><div><b>Količine nisu navedene</b><p>${vague === 1 ? 'Za označenu namirnicu uzeta je prosječna porcija' : 'Za označene namirnice uzete su prosječne porcije'}. Za točniji izračun navedi okvirne količine, npr. „pola tanjura riže“, „dvije šake“, „tri žlice“, „pola šalice“, „150 g piletine“, ili ${G('sam', 'sama')} upiši grame ispod.</p>
+    <button class="linkbtn" data-act="retext">Ispravi opis →</button></div></div>`;
   if (hasFood) h += `<label class="f">Obrok<select id="cMeal">${MEALS.map(m => `<option ${m === p.meal ? 'selected' : ''}>${m}</option>`).join('')}</select></label>`;
   if (p.steps != null) h += `<div class="ci act"><div class="ci-top"><b style="flex:1">Koraci danas</b>
       <button class="x" data-act="cistdel" aria-label="Ukloni">×</button></div>
