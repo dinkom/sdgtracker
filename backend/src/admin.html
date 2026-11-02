@@ -31,6 +31,13 @@ button.primary{background:var(--accent);color:#111}button.danger{background:none
 button.link{background:none;padding:4px 6px;color:var(--accent-ink);font-weight:600}
 button:disabled{opacity:.5}
 .search{margin-bottom:10px}
+.ufilter{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:99px;padding:5px 11px;font-size:13px;font-weight:600;cursor:pointer}
+.chip b{font-weight:700;color:var(--muted);margin-left:4px}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#111}.chip.on b{color:#111}
+.usort{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.usort select{width:auto;padding:5px 8px;font-size:13px}
 .user{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
 .user:first-child{border-top:0}
 .user .who b{display:block}.user .who small{color:var(--muted);display:block;word-break:break-all}
@@ -91,6 +98,16 @@ button:disabled{opacity:.5}
   <div class="card">
     <h2 id="usersTitle">Polaznici</h2>
     <input class="search" id="q" placeholder="Pretraži po imenu ili e-mailu">
+    <div class="ufilter">
+      <div class="chips" id="planChips"></div>
+      <label class="usort">Poredaj <select id="sort">
+        <option value="new">najnoviji prvo</option>
+        <option value="old">najstariji prvo</option>
+        <option value="name">ime A–Ž</option>
+        <option value="seen">zadnja aktivnost</option>
+        <option value="cost">trošak (30 dana)</option>
+      </select></label>
+    </div>
     <div id="users"></div>
   </div>
 
@@ -132,6 +149,8 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = (n, d = 0) => (+n || 0).toLocaleString('hr-HR', {minimumFractionDigits:d, maximumFractionDigits:d});
 let data = null, editing = null;
+const uf = (() => { try { return {plan:'all', sort:'new', ...JSON.parse(localStorage.getItem('cq-admin-uf') || '{}')}; } catch (e) { return {plan:'all', sort:'new'}; } })();
+const saveUf = () => { try { localStorage.setItem('cq-admin-uf', JSON.stringify(uf)); } catch (e) {} };
 function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2500); }
 async function api(path, body) {
   const r = await fetch('/admin/api/' + path, {method:body ? 'POST' : 'GET', headers:{'content-type':'application/json', 'x-requested-with':'calquest-admin'},
@@ -182,9 +201,22 @@ function render() {
   const bf = $('#billForm'); if (!bf.dataset.filled) { for (const k of ['trial_days', 'price_member', 'price_external', 'registration']) bf[k].value = s[k]; bf.dataset.filled = 1; }
   const f = $('#setForm'); if (!f.dataset.filled) { f.text_model.value = s.text_model; f.photo_model.value = s.photo_model; f.daily_limit.value = s.daily_limit; f.dataset.filled = 1; }
   const q = $('#q').value.trim().toLowerCase();
-  const list = data.users.filter(u => !q || u.email.includes(q) || (u.name || '').toLowerCase().includes(q));
+  const groups = {all:['Svi', () => true], trial:['Probno', u => u.plan === 'trial'], member:[`Član · ${s.price_member} €`, u => u.plan === 'member'],
+    external:[`Vanjski · ${s.price_external} €`, u => u.plan === 'external'], free:['Besplatno', u => u.plan === 'free'],
+    noaccess:['Bez pristupa', u => !(u.access && u.access.ok)]};
+  if (!groups[uf.plan]) uf.plan = 'all';
+  $('#planChips').innerHTML = Object.entries(groups).map(([k, [lab, fn]]) =>
+    `<button class="chip ${uf.plan === k ? 'on' : ''}" data-plan="${k}">${lab}<b>${data.users.filter(fn).length}</b></button>`).join('');
+  $('#sort').value = uf.sort;
+  const ts = x => x ? Date.parse(x) || 0 : 0;
+  const sorters = {new:(a, b) => ts(b.created_at) - ts(a.created_at), old:(a, b) => ts(a.created_at) - ts(b.created_at),
+    name:(a, b) => (a.name || a.email).localeCompare(b.name || b.email, 'hr'), seen:(a, b) => ts(b.last_seen) - ts(a.last_seen),
+    cost:(a, b) => (b.d30_cost || 0) - (a.d30_cost || 0)};
+  const list = data.users.filter(u => groups[uf.plan][1](u) && (!q || u.email.includes(q) || (u.name || '').toLowerCase().includes(q)))
+    .sort(sorters[uf.sort] || sorters.new);
   $('#usersTitle').textContent = `Polaznici · ${data.users.length}`;
   if (!data.users.length) { $('#users').innerHTML = `<div class="empty">Još nema polaznika. Dodaj prvog gore.</div>`; return; }
+  if (!list.length) { $('#users').innerHTML = `<div class="empty">Nema polaznika za odabrani filter.</div>`; return; }
   $('#users').innerHTML = list.map(u => {
     const lim = u.daily_limit ?? s.daily_limit, atLimit = u.today_requests >= lim;
     return `<div class="user ${u.active ? '' : 'off'}" data-email="${esc(u.email)}">
@@ -194,7 +226,8 @@ function render() {
       <div class="meta"><span>danas <b>${u.today_requests}/${lim}</b>${u.today_photos ? ` (📷 ${u.today_photos})` : ''} ${atLimit ? '<span class="pill limit">limit</span>' : ''}</span>
         <span>30 dana <b>${fmt(u.d30_requests)}</b> · <b>$${fmt(u.d30_cost, 2)}</b></span>
         <span>uređaj: <b>${u.last_seen ? `${device(u.user_agent)} · ${ago(u.last_seen)}` : 'nije prijavljen'}</b></span>
-        <span>kopija: <b>${u.backup_at ? ago(u.backup_at) : 'nema'}</b></span></div>
+        <span>kopija: <b>${u.backup_at ? ago(u.backup_at) : 'nema'}</b></span>
+        <span>registriran: <b>${u.created_at ? fdate(u.created_at) : '–'}</b></span></div>
       <div class="planrow">${planSelect(u)} ${statusPill(u)} ${u.member_claim ? '<span class="pill">kaže: član</span>' : u.self_registered ? '<span class="pill">kaže: nije član</span>' : ''}
         ${u.plan === 'trial' ? `<span class="muted">do ${fdate(u.trial_until)}</span> <button class="link" data-act="trial">+7 dana</button>` : ''}</div>
       <div class="acts"><button class="link" data-act="edit">Uredi</button>${u.last_seen ? `<button class="link" data-act="logout">Odjavi uređaj</button>` : ''}<button class="link" data-act="del" style="color:var(--bad)">Obriši</button></div>
@@ -284,6 +317,8 @@ $('#csv').addEventListener('click', () => {
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'})); a.download = `calquest-uplate-${pay.month}.csv`; a.click();
 });
 $('#q').addEventListener('input', render);
+$('#planChips').addEventListener('click', e => { const b = e.target.closest('[data-plan]'); if (!b) return; uf.plan = b.dataset.plan; saveUf(); render(); });
+$('#sort').addEventListener('change', e => { uf.sort = e.target.value; saveUf(); render(); });
 $('#reload').addEventListener('click', load);
 load(); loadPays();
 </script>
