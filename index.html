@@ -75,6 +75,7 @@ h2{font-size:15px;margin:0 0 10px;letter-spacing:.01em;text-transform:uppercase;
 .bar i{display:block;height:100%;border-radius:6px}
 
 .notice{border-color:var(--accent);background:var(--accent-soft)}
+.req{margin:6px 0 4px;padding-left:18px;font-size:14px;color:var(--muted)}.req li{margin:2px 0}.req li.ok{color:var(--good);list-style:none;margin-left:-18px}
 .news{position:relative;border:2px solid var(--accent);background:var(--accent-soft);padding-right:44px}
 .news .x{position:absolute;top:10px;right:10px}
 .news-tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;background:var(--accent);color:var(--on-accent);border-radius:99px;padding:2px 9px;margin-bottom:8px}
@@ -879,7 +880,10 @@ function weightHtml() {
       <p class="muted small" style="margin:0">Pretpostavlja da su dani s unosom hrane zabilježeni u cijelosti.</p>`;
   } else {
     h += `<p class="muted small" style="margin:0">${a.odd ? 'Podaci za sada daju nerealnu procjenu – vjerojatno nisu svi obroci zabilježeni.' :
-      `Kad skupiš dovoljno podataka, izračunat ću stvarnu potrošnju iz unosa i promjene težine. Treba: <b>${a.fn}/14</b> dana s unosom hrane i <b>${a.wn}/8</b> vaganja u zadnja 4 tjedna.`}</p>`;
+      `Kad skupiš dovoljno podataka, aplikacija će iz unosa i promjene težine izračunati tvoju stvarnu potrošnju. Za to u zadnja 4 tjedna treba:</p>
+      <ul class="req">${[[a.fn, 14, 'Dani s unosom hrane'], [a.wn, 8, 'Vaganja']].map(([n, need, lab]) => n >= need
+        ? `<li class="ok">✓ ${lab}: <b>${n}</b> (treba ${need}) – ispunjeno</li>`
+        : `<li>${lab}: <b>${n}</b> od ${need} – još <b>${need - n}</b></li>`).join('')}</ul><p class="muted small" style="margin:0">`}</p>`;
   }
   h += `</div>`;
   if (ser.length) {
