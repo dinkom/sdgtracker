@@ -75,6 +75,13 @@ h2{font-size:15px;margin:0 0 10px;letter-spacing:.01em;text-transform:uppercase;
 .bar i{display:block;height:100%;border-radius:6px}
 
 .notice{border-color:var(--accent);background:var(--accent-soft)}
+.news{position:relative;border:2px solid var(--accent);background:var(--accent-soft);padding-right:44px}
+.news .x{position:absolute;top:10px;right:10px}
+.news-tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;background:var(--accent);color:var(--on-accent);border-radius:99px;padding:2px 9px;margin-bottom:8px}
+.news b{display:block;font-size:17px;margin-bottom:4px}.news p{margin:0 0 12px}
+.news-btns{display:flex;flex-wrap:wrap;gap:8px}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 transparent}40%{box-shadow:0 0 0 5px var(--accent)}}
+.pulse{animation:pulse 1.2s ease 2}
 .notice p{margin:4px 0 12px}
 
 /* lists */
@@ -588,9 +595,31 @@ function renderHeader() {
   }
 }
 
+/* ---------- novosti: banner koji se pokaže jednom ---------- */
+// Novu obavijest dodaš na vrh popisa; id mora biti jedinstven. Korisnik je vidi dok je ne zatvori.
+const NEWS = [
+  {id:'vikend-2026-11', icon:'🍕', title:'Novo: Vikend malo opuštenije',
+   text:() => weekendAllowed()
+     ? 'Subotom i nedjeljom sad možeš pojesti i do 400 kcal više, a aplikacija to izravna kroz radne dane. Tjedni zbroj i tempo ostaju isti.'
+     : 'Subotom i nedjeljom možeš pojesti više, a aplikacija to izravna kroz radne dane. Dostupno uz mršavljenje do 0,5 kg tjedno, održavanje ili dobivanje.',
+   btn:'Uključi u Profilu', go:'weekend'},
+];
+function newsItem() {
+  if (tab !== 'dan' || cur !== todayKey()) return null;
+  const seen = S().newsSeen || [];
+  return NEWS.find(n => !seen.includes(n.id)) || null;
+}
+function dismissNews(id) { db.settings.newsSeen = [...new Set([...(S().newsSeen || []), id])]; save(); }
+function newsHtml() {
+  const n = newsItem(); if (!n) return '';
+  return `<div class="card news" data-id="${n.id}"><button class="x" data-act="newsclose" data-id="${n.id}" aria-label="Zatvori">×</button>
+    <span class="news-tag">Novo u aplikaciji</span><b>${n.icon} ${esc(n.title.replace(/^Novo: /, ''))}</b><p>${esc(typeof n.text === 'function' ? n.text() : n.text)}</p>
+    <div class="news-btns">${n.btn ? `<button class="btn sm" data-act="newsgo" data-id="${n.id}">${esc(n.btn)}</button>` : ''}<button class="btn sm ghost" data-act="newsclose" data-id="${n.id}">Zatvori</button></div></div>`;
+}
 function dayHtml() {
   const s = S(), k = cur, t = totals(k), tgt = target(k), w = weightAt(k);
   let h = '';
+  if (tgt != null) h += newsHtml();
   if (tgt == null) {
     h += `<div class="card notice"><b>Dovrši profil</b><p>Upiši dob, visinu i težinu da izračunam dnevni cilj.</p>
       <button class="btn sm" data-act="tab" data-tab="postavke">Otvori profil</button></div>`;
@@ -953,7 +982,7 @@ function settingsHtml() {
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button>
     <div class="diag"><span>Zapis zadnjih obrada (za prijavu greške)</span>
       <button class="btn sm ghost" data-act="diagcopy">Kopiraj za podršku</button></div></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 3.8</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 3.9</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -2385,6 +2414,13 @@ document.addEventListener('click', e => {
     case 'fxnext': nextFx(); break;
     case 'fxclose': fxQueue = []; nextFx(); break;
     case 'fxprofile': fxQueue = []; nextFx(); tab = 'postavke'; render(); window.scrollTo(0, 0); break;
+    case 'newsclose': dismissNews(id); render(); break;
+    case 'newsgo': {
+      const n = NEWS.find(x => x.id === id); dismissNews(id);
+      tab = 'postavke'; render();
+      if (n?.go === 'weekend') setTimeout(() => { const el2 = $('#wkSel'); if (el2) { el2.scrollIntoView({behavior:'smooth', block:'center'}); el2.classList.add('pulse'); setTimeout(() => el2.classList.remove('pulse'), 2400); } }, 80);
+      break;
+    }
     case 'focusgoal': { const g = $('#goalIn'); if (g) { g.scrollIntoView({behavior:'smooth', block:'center'}); setTimeout(() => g.focus(), 350); } break; }
     case 'skin': { const v = el.dataset.id || 'osnovni'; if (!/^[a-z0-9-]+$/.test(v)) break;
       db.settings.skin = v; save(); applySkin(v); renderSkins(); break; }
@@ -2470,6 +2506,7 @@ window.addEventListener('focus', onResume);
 window.addEventListener('pageshow', onResume);
 setInterval(() => { if (!document.hidden && checkDay() && !$('#sheet').classList.contains('open')) render(); }, 30000);
 
+if (!Array.isArray(S().newsSeen) && !hasLocalData()) { db.settings.newsSeen = NEWS.map(n => n.id); persist(); }   // novi korisnik: postojeće novosti nisu mu "nove"
 render(); autosize(); fitPlaceholder();
 window.addEventListener('resize', fitPlaceholder);
 document.fonts?.ready?.then(fitPlaceholder);
