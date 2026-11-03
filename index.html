@@ -448,8 +448,8 @@ function setAuth(a) { auth = a; try { a ? localStorage.setItem(AUTH_KEY, JSON.st
 const KEY = 'zalogaj-v1';
 const API = 'https://api.anthropic.com/v1/messages';
 const DEF = {skin:'osnovni', apiKey:'', model:'claude-haiku-5-5', photoModel:'claude-sonnet-5-5', sex:'m', age:'', height:'', activity:1.375, goalRate:-0.25,
-             proteinPerKg:1.8, addExercise:true, autoProcess:true, useAdaptive:false, stepsBaseline:3000};
-const NUMKEYS = ['age','height','activity','goalRate','proteinPerKg','stepsBaseline','goalWeight'];
+             proteinPerKg:1.8, addExercise:true, autoProcess:true, useAdaptive:false, stepsBaseline:3000, weekendBoost:0};
+const NUMKEYS = ['age','height','activity','goalRate','proteinPerKg','stepsBaseline','goalWeight','weekendBoost'];
 const MEALS = ['doručak','ručak','večera','užina'];
 const DAYN = ['ned','pon','uto','sri','čet','pet','sub'];
 
@@ -538,7 +538,26 @@ function baseTdee(k) {
   if (S().useAdaptive) { const a = adaptive(); if (a.ready) return a.base; }
   return formulaTdee(k);
 }
-function target(k) { const t = baseTdee(k); return t == null ? null : Math.round(t + S().goalRate * 7700 / 7); }
+function baseTarget(k) { const t = baseTdee(k); return t == null ? null : Math.round(t + S().goalRate * 7700 / 7); }
+// Vikend: subotom i nedjeljom više, a pon–pet toliko manje da tjedni zbroj ostane isti.
+// Dopušteno samo uz tempo do −0,5 kg/tj. (ne uz −0,75) i nikad ispod donje granice za radni dan.
+const WEEKEND_MAX_LOSS = -0.5;
+const weekendAllowed = () => +S().goalRate >= WEEKEND_MAX_LOSS;
+const isWeekend = k => { const d = parseKey(k).getDay(); return d === 0 || d === 6; };
+function weekendShift(k) {
+  const want = +S().weekendBoost || 0, base = baseTarget(k);
+  if (!want || base == null || !weekendAllowed()) return {on:false, plus:0, minus:0, base, capped:false};
+  const floor = S().sex === 'f' ? 1200 : 1500;                                    // donja granica za radni dan
+  const maxPlus = Math.max(0, Math.floor((base - floor) * 5 / 2 / 10) * 10);   // pon–pet ne smije ispod granice
+  const plus = Math.min(want, maxPlus);
+  return {on:plus > 0, plus, minus:Math.round(plus * 2 / 5), base, capped:plus < want, floor};
+}
+function target(k) {
+  const w = weekendShift(k);
+  if (w.base == null) return null;
+  if (!w.on) return w.base;
+  return isWeekend(k) ? w.base + w.plus : w.base - w.minus;
+}
 function mealByTime(d = new Date()) {
   const h = d.getHours();
   return h < 10 ? 'doručak' : h < 12 ? 'užina' : h < 16 ? 'ručak' : h < 18 ? 'užina' : h < 22 ? 'večera' : 'užina';
@@ -587,7 +606,7 @@ function dayHtml() {
       <span>${left == null ? 'kcal uneseno' : over ? 'kcal preko cilja' : 'kcal preostalo'}</span></div>
     </div>
     <div class="stats">
-      <div class="stat"><span>Cilj</span><b>${tgt == null ? '–' : fmt(tgt)}</b></div>
+      <div class="stat"><span>Cilj${weekendShift(cur).on ? (isWeekend(cur) ? ' · vikend' : ' · radni dan') : ''}</span><b>${tgt == null ? '–' : fmt(tgt)}</b></div>
       <div class="stat"><span>Hrana</span><b>${fmt(t.kcal)}</b></div>
       <div class="stat"><span>Aktivnost</span><b class="${t.act ? 'plus' : ''}">${t.act ? '+' + fmt(t.act) : '0'}</b></div>
     </div></section>`;
@@ -900,6 +919,12 @@ function settingsHtml() {
       <option value="0.25">Dobivanje 0,25 kg/tj.</option><option value="0.5">Dobivanje 0,5 kg/tj.</option></select></label>
     <label class="f">Ciljna težina (kg)<input data-s="goalWeight" id="goalIn" type="number" inputmode="decimal" step="0.1" min="30" max="300" placeholder="npr. 85"></label>
     <label class="f">Proteini (g po kg tjelesne mase)<input data-s="proteinPerKg" type="number" inputmode="decimal" step="0.1" min="0.8" max="3"></label>
+    <label class="f">Vikend malo opuštenije<select data-s="weekendBoost" id="wkSel">
+      <option value="0">Isključeno – svaki dan isti cilj</option>
+      <option value="200">+200 kcal subotom i nedjeljom</option>
+      <option value="300">+300 kcal subotom i nedjeljom</option>
+      <option value="400">+400 kcal subotom i nedjeljom</option></select></label>
+    <p class="muted small" id="wkNote" style="margin:-4px 0 12px"></p>
     <label class="chk"><input type="checkbox" data-s="addExercise"> Kalorije od aktivnosti dodaj u dnevni budžet</label>
     <div class="sumbox" id="sumBox"></div></div>
 
@@ -928,7 +953,7 @@ function settingsHtml() {
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button>
     <div class="diag"><span>Zapis zadnjih obrada (za prijavu greške)</span>
       <button class="btn sm ghost" data-act="diagcopy">Kopiraj za podršku</button></div></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 3.7</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 3.8</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -959,7 +984,17 @@ function fillSettings() {
   });
   updateSumBox();
 }
+function updateWeekendUI() {
+  const sel = $('#wkSel'), note = $('#wkNote'); if (!sel || !note) return;
+  const ok = weekendAllowed(), w = weekendShift(todayKey());
+  sel.disabled = !ok; sel.value = ok ? String(+S().weekendBoost || 0) : '0';   // prikaži isključeno dok nije dostupno (postavka ostaje spremljena)
+  if (!ok) note.innerHTML = 'Dostupno uz mršavljenje do 0,5 kg/tj., održavanje ili dobivanje. Uz 0,75 kg/tj. nema prostora za manje jela preko tjedna.';
+  else if (!+S().weekendBoost) note.innerHTML = 'Subotom i nedjeljom više, a od ponedjeljka do petka malo manje. Tjedni zbroj i tempo ostaju isti.';
+  else if (!w.on) note.innerHTML = 'Za tvoj cilj ovo trenutno nije moguće: radni dani bi pali ispod sigurne granice.';
+  else note.innerHTML = `Subota i nedjelja <b>+${fmt(w.plus)} kcal</b>, ponedjeljak–petak <b>−${fmt(w.minus)} kcal</b>. Tjedni zbroj ostaje isti.${w.capped ? ` <span class="warnline" style="display:inline">Smanjeno na +${fmt(w.plus)} da radni dani ne padnu ispod ${fmt(w.floor)} kcal.</span>` : ''}`;
+}
 function updateSumBox() {
+  updateWeekendUI();
   const box = $('#sumBox'); if (!box) return;
   const t = todayKey(), w = weightAt(t), b = bmr(w), tdee = baseTdee(t), tgt = target(t);
   if (!b) {
@@ -972,7 +1007,8 @@ function updateSumBox() {
   box.classList.remove('todo');
   box.innerHTML = `<div><span>Bazalni metabolizam</span><b>${fmt(b)} kcal</b></div>
     <div><span>Dnevna potrošnja${S().useAdaptive && adaptive().ready ? ' (iz podataka)' : ''}</span><b>${fmt(tdee)} kcal</b></div>
-    <div><span>Dnevni cilj</span><b>${fmt(tgt)} kcal</b></div>
+    ${weekendShift(t).on ? `<div><span>Dnevni cilj pon–pet</span><b>${fmt(weekendShift(t).base - weekendShift(t).minus)} kcal</b></div>
+    <div><span>Dnevni cilj sub–ned</span><b>${fmt(weekendShift(t).base + weekendShift(t).plus)} kcal</b></div>` : `<div><span>Dnevni cilj</span><b>${fmt(tgt)} kcal</b></div>`}
     <div><span>Proteini</span><b>${Math.round(w * S().proteinPerKg)} g</b></div>
     ${tgt < b ? `<div class="warnline">Cilj je ispod bazalnog metabolizma – razmisli o sporijem tempu.</div>` : ''}`;
 }
