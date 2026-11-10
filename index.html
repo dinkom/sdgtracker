@@ -76,6 +76,9 @@ h2{font-size:15px;margin:0 0 10px;letter-spacing:.01em;text-transform:uppercase;
 
 .notice{border-color:var(--accent);background:var(--accent-soft)}
 .req{margin:6px 0 4px;padding-left:18px;font-size:14px;color:var(--muted)}.req li{margin:2px 0}.req li.ok{color:var(--good);list-style:none;margin-left:-18px}
+.lockbar{border:2px solid var(--bad);background:color-mix(in srgb,var(--bad) 8%,var(--surface))}
+.lockbar b{display:block;color:var(--bad);font-size:16px;margin-bottom:4px}.lockbar p{margin:0 0 10px}
+body.ro #inp{opacity:.6}
 .news{position:relative;border:2px solid var(--accent);background:var(--accent-soft);padding-right:44px}
 .news .x{position:absolute;top:10px;right:10px}
 .news-tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;background:var(--accent);color:var(--on-accent);border-radius:99px;padding:2px 9px;margin-bottom:8px}
@@ -620,7 +623,8 @@ function newsHtml() {
 function dayHtml() {
   const s = S(), k = cur, t = totals(k), tgt = target(k), w = weightAt(k);
   let h = '';
-  if (tgt != null) h += newsHtml();
+  h += lockedBannerHtml();
+  if (tgt != null && !locked()) h += newsHtml();
   if (tgt == null) {
     h += `<div class="card notice"><b>Dovrši profil</b><p>Upiši dob, visinu i težinu da izračunam dnevni cilj.</p>
       <button class="btn sm" data-act="tab" data-tab="postavke">Otvori profil</button></div>`;
@@ -986,7 +990,7 @@ function settingsHtml() {
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button>
     <div class="diag"><span>Zapis zadnjih obrada (za prijavu greške)</span>
       <button class="btn sm ghost" data-act="diagcopy">Kopiraj za podršku</button></div></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 3.9</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 3.10</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -1365,6 +1369,7 @@ async function shrinkPhoto(file) {
 }
 function setBusy(b) { busy = b; $('#send').classList.toggle('busy', b); autosize(); }
 async function processInput() {
+  if (locked()) { paywall(billing()); return; }
   const text = inp.value.trim(), ph = photo;
   if ((!text && !ph) || busy) return;
   if (!SERVER && !S().apiKey.trim()) { toast('Prvo upiši API ključ u Profilu.'); return; }
@@ -1684,6 +1689,7 @@ function dictate(input, btn, onEnd) {
   try { r.start(); btn.classList.add('on'); } catch (e) { editRec = null; }
 }
 function toggleMic() {
+  if (locked()) { paywall(billing()); return; }
   if (listening) { rec?.stop(); return; }
   if (!SR) { toast('Ovaj preglednik ne podržava diktiranje. Koristi mikrofon na tipkovnici.', 4500); inp.focus(); return; }
   const before = inp.value.trim();
@@ -1757,7 +1763,8 @@ async function refreshAccount() {
     const j = await r.json().catch(() => ({}));
     if (r.status === 401) { setAuth(null); showLogin(j.message); return; }
     if (r.status === 403) { account = null; toast(j.message || 'Pristup nije aktivan.', 5000); return; }
-    if (r.ok) { account = j; if (j.name && auth.name !== j.name) setAuth({...auth, name:j.name}); if (tab === 'postavke') render(); }
+    if (r.ok) { account = j; cachedBilling = j.billing || null; try { localStorage.setItem('calquest-billing', JSON.stringify(cachedBilling)); } catch (e) {}
+      if (j.name && auth.name !== j.name) setAuth({...auth, name:j.name}); document.body.classList.toggle('ro', locked()); render(); }
   } catch (e) {}
 }
 let loginState = {step:'email', email:'', busy:false, msg:'', wait:0};
@@ -1857,6 +1864,20 @@ const fmtD = iso => iso ? new Date(iso).toLocaleDateString('hr-HR', {day:'numeri
 const daysLeft = iso => Math.max(0, Math.ceil((Date.parse(iso) - Date.now()) / 864e5));
 
 /* ---------- pretplata ---------- */
+// Bez pretplate (isteklo probno ili pretplata) aplikacija je samo za pregled: ništa se ne unosi ni ne mijenja.
+// Ako stanje računa još nije poznato (npr. bez interneta), ne zaključavamo – obradu ionako štiti server.
+let cachedBilling = null; try { cachedBilling = JSON.parse(localStorage.getItem('calquest-billing') || 'null'); } catch (e) {}
+const billing = () => account?.billing || cachedBilling;
+const locked = () => SERVER && !!auth?.token && !!billing() && billing().access === false;
+const LOCKED_ACTS = new Set(['manual', 'steps', 'stsave', 'stdel', 'wsave', 'wdel', 'edit', 'esave', 'edel', 'eask', 'emic', 'euse',
+  'confirm', 'cidel', 'cistdel', 'mealadd', 'mealedit', 'mealsave', 'mealdel', 'miadd', 'midel', 'miuse', 'import', 'retext']);
+function lockedBannerHtml() {
+  if (!locked()) return '';
+  const b = billing();
+  return `<div class="card lockbar"><b>${b.trial_until && !b.paid_until ? 'Probno razdoblje je isteklo' : 'Pretplata je istekla'}</b>
+    <p>Svoje podatke i napredak i dalje možeš pregledavati, a za nove unose uključi pretplatu.</p>
+    ${b.plan_decided && b.payments_enabled ? `<button class="btn sm" data-act="paygo">Pretplati se${b.price ? ` · ${b.price} €/mj` : ''}</button>` : '<button class="btn sm" data-act="tab" data-tab="postavke">Pretplata u Profilu</button>'}</div>`;
+}
 function billingStatusHtml(b, inSheet) {
   if (!b) return '<p class="muted">Učitavam…</p>';
   const price = b.price ? `<b>${b.price} €</b> mjesečno${b.plan === 'member' ? ' <span class="muted">(cijena za članove)</span>' : ''}` : '';
@@ -1872,7 +1893,7 @@ function billingStatusHtml(b, inSheet) {
       : `<div class="pay-st ok">Pretplata aktivna</div><p>${price}${b.paid_until ? ` · plaćeno do <b>${fmtD(b.paid_until)}</b>` : ''}</p>`;
     return head + (b.sub_status === 'past_due' ? `<p class="lg-msg">Zadnja naplata nije uspjela. Provjeri karticu.</p>` : '') + manage;
   }
-  if (b.state === 'paid') return `<div class="pay-st warn">Pretplata završava</div><p>Plaćeno do <b>${fmtD(b.paid_until)}</b>. Nakon toga obrada unosa se zaustavlja.</p>${b.plan_decided ? can(sub) : ''}`;
+  if (b.state === 'paid') return `<div class="pay-st warn">Pretplata završava</div><p>Plaćeno do <b>${fmtD(b.paid_until)}</b>. Nakon toga ostaje samo pregled podataka, bez novih unosa.</p>${b.plan_decided ? can(sub) : ''}`;
   if (b.state === 'trial') {
     const n = daysLeft(b.trial_until);
     return `<div class="pay-st">Probno razdoblje</div><p>Besplatno do <b>${fmtD(b.trial_until)}</b> <span class="muted">(${n === 0 ? 'ističe danas' : n === 1 ? 'još 1 dan' : `još ${n} dana`})</span></p>
@@ -1880,7 +1901,7 @@ function billingStatusHtml(b, inSheet) {
   }
   // isteklo
   return `<div class="pay-st bad">${b.trial_until && !b.paid_until ? 'Probno razdoblje je isteklo' : 'Pretplata je istekla'}</div>
-    <p class="muted">Tvoji podaci ostaju na uređaju${inSheet ? '' : ' i možeš ih pregledavati'}, ali za obradu novih unosa treba pretplata.</p>
+    <p class="muted">Tvoji podaci ostaju na uređaju i možeš ih pregledavati, ali za nove unose treba pretplata.</p>
     ${b.plan_decided ? (price ? `<p>Tvoja cijena: ${price}</p>` : '') + can(sub) : `<p class="muted small">Trener ti još nije potvrdio cijenu. Javi mu se ili pričekaj e-mail.</p>`}`;
 }
 function billingCardHtml() {
@@ -1889,7 +1910,7 @@ function billingCardHtml() {
 }
 function paywall(b) {
   if (b && account) account.billing = b;
-  openSheet(`<h2>Obrada je zaustavljena</h2>${billingStatusHtml(b || account?.billing, true)}
+  openSheet(`<h2>Novi unosi su zaustavljeni</h2>${billingStatusHtml(b || account?.billing, true)}
     <button class="linkbtn" data-act="sheetclose" style="margin-top:6px">Zatvori</button>`);
 }
 let payBusy = false;
@@ -1918,7 +1939,7 @@ function billingReturn() {
 async function logout() {
   if (!confirm('Odjaviti se s ovog uređaja? Podaci ostaju na uređaju, a za ponovnu prijavu trebat će ti novi kod.')) return;
   try { await fetch(BACKEND_URL + '/auth/logout', {method:'POST', headers:{'authorization':'Bearer ' + auth.token}}); } catch (e) {}
-  setAuth(null); account = null; showLogin();
+  setAuth(null); account = null; cachedBilling = null; try { localStorage.removeItem('calquest-billing'); } catch (e) {} showLogin();
 }
 
 /* ---------- instalacija na početni zaslon ---------- */
@@ -2313,6 +2334,7 @@ document.addEventListener('click', e => {
   if (!el) return;
   if (el.closest('nav.tabs') && el.dataset.tab) { tab = el.dataset.tab; render(); window.scrollTo(0, 0); return; }
   const a = el.dataset.act, id = el.dataset.id;
+  if (LOCKED_ACTS.has(a) && locked()) { paywall(billing()); return; }
   switch (a) {
     case 'tab': tab = el.dataset.tab; render(); window.scrollTo(0, 0); break;
     case 'ovmode': ovMode = el.dataset.m; ovSel = null; render(); break;
@@ -2451,7 +2473,9 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const el = e.target;
   if (el.id === 'cSave') { $('#cSaveName').style.display = el.checked ? 'block' : 'none'; if (el.checked) $('#cSaveName').focus(); return; }
+  if (el.id === 'impFile' && locked()) { el.value = ''; paywall(billing()); return; }
   if (el.id === 'impFile') { if (el.files[0]) importData(el.files[0]); el.value = ''; return; }
+  if (el.id === 'setW' && locked()) { el.value = db.weights[todayKey()] ?? ''; paywall(billing()); return; }
   if (el.id === 'setW') {
     const v = parseFloat(el.value.replace(',', '.'));
     if (v > 25 && v < 350) { if (!weightPlausible(v)) { el.value = db.weights[todayKey()] ?? ''; return; } db.weights[todayKey()] = r1(v); save(); updateSumBox(); }
@@ -2480,7 +2504,7 @@ $('#login').addEventListener('submit', e => {
 $('#login').addEventListener('input', e => { if (e.target.id === 'lgCode' && e.target.value.replace(/\D/g, '').length === 6 && !loginState.busy) loginVerify(e.target.value.replace(/\D/g, '')); });
 $('#mic').addEventListener('click', toggleMic);
 $('#send').addEventListener('click', processInput);
-$('#cam').addEventListener('click', () => $('#photoIn').click());
+$('#cam').addEventListener('click', () => { if (locked()) { paywall(billing()); return; } $('#photoIn').click(); });
 $('#photoIn').addEventListener('change', async e => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;
