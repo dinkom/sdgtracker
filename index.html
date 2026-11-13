@@ -530,7 +530,8 @@ function adaptive() {
   const end = addDays(todayKey(), -1), start = addDays(end, -27);
   const ks = [];
   for (let k = start; k <= end; k = addDays(k, 1)) ks.push(k);
-  const wp = ks.filter(k => db.weights[k] != null).map(k => [dayDiff(start, k), +db.weights[k]]);
+  // vaganja se broje i danas (jutarnje vaganje je gotov podatak), a hrana samo do jučer jer današnji dan još nije završen
+  const wp = [...ks, todayKey()].filter(k => db.weights[k] != null).map(k => [dayDiff(start, k), +db.weights[k]]);
   const fd = ks.filter(k => entriesOf(k).some(e => e.kind !== 'activity'));
   if (wp.length < 8 || fd.length < 14) return {ready:false, wn:wp.length, fn:fd.length};
   const n = wp.length, mx = wp.reduce((a, p) => a + p[0], 0) / n, my = wp.reduce((a, p) => a + p[1], 0) / n;
@@ -884,7 +885,7 @@ function weightHtml() {
       <p class="muted small" style="margin:0">Pretpostavlja da su dani s unosom hrane zabilježeni u cijelosti.</p>`;
   } else {
     h += `<p class="muted small" style="margin:0">${a.odd ? 'Podaci za sada daju nerealnu procjenu – vjerojatno nisu svi obroci zabilježeni.' :
-      `Kad skupiš dovoljno podataka, aplikacija će iz unosa i promjene težine izračunati tvoju stvarnu potrošnju. Za to u zadnja 4 tjedna treba:</p>
+      `Kad skupiš dovoljno podataka, aplikacija će iz unosa i promjene težine izračunati tvoju stvarnu potrošnju. Za to u zadnja 4 tjedna treba (hrana se broji do jučer, vaganja i danas):</p>
       <ul class="req">${[[a.fn, 14, 'Dani s unosom hrane'], [a.wn, 8, 'Vaganja']].map(([n, need, lab]) => n >= need
         ? `<li class="ok">✓ ${lab}: <b>${n}</b> (treba ${need}) – ispunjeno</li>`
         : `<li>${lab}: <b>${n}</b> od ${need} – još <b>${need - n}</b></li>`).join('')}</ul><p class="muted small" style="margin:0">`}</p>`;
@@ -990,7 +991,7 @@ function settingsHtml() {
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button>
     <div class="diag"><span>Zapis zadnjih obrada (za prijavu greške)</span>
       <button class="btn sm ghost" data-act="diagcopy">Kopiraj za podršku</button></div></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 3.10</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 3.11</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
