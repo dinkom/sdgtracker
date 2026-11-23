@@ -991,7 +991,7 @@ function settingsHtml() {
     <button class="btn sm danger" data-act="wipe" style="margin-top:14px">Obriši sve podatke</button>
     <div class="diag"><span>Zapis zadnjih obrada (za prijavu greške)</span>
       <button class="btn sm ghost" data-act="diagcopy">Kopiraj za podršku</button></div></div>
-  <p class="muted small" style="text-align:center">SDG CalQuest 3.11</p>`;
+  <p class="muted small" style="text-align:center">SDG CalQuest 3.12</p>`;
 }
 let skinsCache = null;
 async function loadSkins() {
@@ -1111,6 +1111,7 @@ AKTIVNOST
 - Runde i serije pretvori u minute: "4 runde po 5 minuta" = 20 minuta. Ako je spomenut i odmor između rundi, ne ubrajaj ga.
 - MET vrijednosti prema Compendium of Physical Activities, na primjer: trening snage s utezima 3,5–6; jiu-jitsu, judo, hrvanje, kickboxing, krav maga – sparing ili rolanje 10, drilovi i tehnika 5–6; trčanje lagano 8, umjereno 10; hodanje 3–4; bicikl umjereno 7–8.
 - kcal izračunaj kao NETO potrošnju: (MET − 1) × tjelesna masa × minute / 60. Bazalni metabolizam je već uračunat drugdje.
+- Ako korisnik navede ili na slici (screenshot sata ili aplikacije: Zepp, Garmin, Apple Watch, Samsung Health, Strava, Polar…) piše IZMJERENA potrošnja kalorija za trening, upiši taj broj točno kako piše u kcal_uredaj (ukupne kalorije s uređaja), a u minute trajanje treninga s uređaja (npr. "Workout time" ili "Duration"). I dalje procijeni met. Uz screenshot sata naziv aktivnosti preuzmi s uređaja (npr. "Strength Training" = "Trening snage").
 - Ako trajanje nije navedeno, pretpostavi uobičajeno i to navedi u polju kolicina.
 
 KORACI
@@ -1141,6 +1142,7 @@ const TOOL = {
       minute:{type:'number', description:'Ukupno aktivno trajanje u minutama (obavezno za aktivnost)'},
       met:{type:'number', description:'MET vrijednost aktivnosti (obavezno za aktivnost)'},
       kcal:{type:'number', description:'Ukupne kcal stavke; za aktivnost neto potrošnja'},
+      kcal_uredaj:{type:'number', description:'Samo za aktivnost: kalorije koje je izmjerio sat ili aplikacija (ukupne, kako piše na uređaju), ako su navedene'},
       proteini:{type:'number'}, ugljikohidrati:{type:'number'}, masti:{type:'number'},
       obrok:{type:'string', enum:['doručak', 'ručak', 'večera', 'užina']},
       sigurnost:{type:'string', enum:['visoka', 'srednja', 'niska']},
@@ -1266,7 +1268,7 @@ function normalizeEntry(out) {
   st = st.map(parseLoose).filter(x => x && typeof x === 'object' && (x.naziv || x.kcal != null || x.minute != null || x.met != null || x.grami != null));
   for (const x of st) {
     if (!x.vrsta) x.vrsta = (x.minute != null || x.met != null) ? 'aktivnost' : 'hrana';
-    for (const k of ['grami', 'minute', 'met', 'kcal', 'proteini', 'ugljikohidrati', 'masti'])
+    for (const k of ['grami', 'minute', 'met', 'kcal', 'kcal_uredaj', 'proteini', 'ugljikohidrati', 'masti'])
       if (typeof x[k] === 'string') { const n = parseFloat(x[k].replace(',', '.')); x[k] = isNaN(n) ? undefined : n; }
   }
   const kor = typeof out.koraci === 'string' ? parseFloat(out.koraci.replace(/\./g, '')) : out.koraci;
@@ -1321,7 +1323,7 @@ async function askClaude(text, ph) {
   if (invalid) {
     try {
       const jb = {max_tokens:Math.max(body.max_tokens, 6000), messages:body.messages,
-        system:body.system + '\n\nOVAJ PUT NEMA ALATA. Odgovori ISKLJUČIVO jednim JSON objektom, bez ikakvog drugog teksta, oblika: {"stavke":[{"vrsta":"hrana|aktivnost","naziv":"...","kolicina":"...","grami":0,"jedinica":"g","minute":0,"met":0,"kcal":0,"proteini":0,"ugljikohidrati":0,"masti":0,"obrok":"ručak","sigurnost":"srednja","kolicina_pretpostavljena":false}],"koraci":null,"napomena":"..."}'};
+        system:body.system + '\n\nOVAJ PUT NEMA ALATA. Odgovori ISKLJUČIVO jednim JSON objektom, bez ikakvog drugog teksta, oblika: {"stavke":[{"vrsta":"hrana|aktivnost","naziv":"...","kolicina":"...","grami":0,"jedinica":"g","minute":0,"met":0,"kcal":0,"kcal_uredaj":null,"proteini":0,"ugljikohidrati":0,"masti":0,"obrok":"ručak","sigurnost":"srednja","kolicina_pretpostavljena":false}],"koraci":null,"napomena":"..."}'};
       const j = await callClaude(jb, model);
       const out = normalizeEntry(toolResult(j, null));
       if (out && (out.stavke.length || out.koraci != null)) return {...out, _model:j.model || model};
@@ -1393,8 +1395,16 @@ function normItem(x) {
   if (act) {
     it.met = +x.met || 0;
     const w = weightAt(cur) || weightAt(todayKey()) || 80;
-    if (it.met > 1 && it.minutes) it.kcal = Math.round((it.met - 1) * w * it.minutes / 60);
-    if (it.met) it.amount = [it.amount, `MET ${fmt(it.met, 1)}`].filter(Boolean).join(' · ');
+    const dev = +x.kcal_uredaj || 0;
+    if (dev > 0 && it.minutes) {
+      // izmjereno satom: uređaj daje UKUPNE kalorije, a bazalni metabolizam je već u dnevnom cilju → oduzmi mirovanje (1 MET)
+      it.kcal = Math.max(0, Math.round(dev - w * it.minutes / 60));
+      it.device = Math.round(dev);
+      it.amount = [it.amount, `sat: ${fmt(dev)} kcal`].filter(Boolean).join(' · ');
+    } else {
+      if (it.met > 1 && it.minutes) it.kcal = Math.round((it.met - 1) * w * it.minutes / 60);
+      if (it.met) it.amount = [it.amount, `MET ${fmt(it.met, 1)}`].filter(Boolean).join(' · ');
+    }
   }
   it.base = {q:act ? it.minutes : it.grams, kcal:it.kcal, p:it.p, c:it.c, f:it.f};
   return it;
